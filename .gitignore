@@ -1,0 +1,28 @@
+# Course handout (not ours to redistribute)
+individual_assignments_instructions.md
+
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+
+# C build artefacts
+src/c/*.o
+src/c/*.exe
+src/c/build/
+
+# Java build artefacts
+src/java/*.class
+
+# Generated input binaries (regenerate with scripts/generate_inputs.py)
+data/inputs/*.bin
+
+# LaTeX build artefacts
+reports/*.aux
+reports/*.log
+reports/*.out
+reports/*.toc
+reports/*.fls
+reports/*.fdb_latexmk
+reports/*.synctex.gz

@@ -1,0 +1,153 @@
+{
+  "description": "Shared input matrices for Assignment 1 (basic dense matrix multiplication).",
+  "generator": "numpy.random.Generator.uniform (PCG64)",
+  "seed": 42,
+  "seed_scheme": "numpy.random.default_rng([seed, n, matrix_index]) with matrix_index: A=0, B=1",
+  "value_range": [
+    -1.0,
+    1.0
+  ],
+  "dtype": "float64 (IEEE-754 binary64), little-endian '<f8'",
+  "layout": "row-major (C order)",
+  "dimensions": "one pair of n x n square matrices (A, B) per size",
+  "sizes": [
+    10,
+    50,
+    100,
+    200,
+    500,
+    1000,
+    2000
+  ],
+  "numpy_version": "2.2.6",
+  "generated_utc": "2026-10-06T19:25:11+00:00",
+  "script": "scripts/generate_inputs.py",
+  "files": [
+    {
+      "file": "A_10.bin",
+      "matrix": "A",
+      "n": 10,
+      "bytes": 800,
+      "sha256": "0ed3ab5b179be54cf6e037a94a4e421488ebaad9b96f9b6d12bc412de2bc3ea2",
+      "min": -0.9710478927603443,
+      "max": 0.997552720771725
+    },
+    {
+      "file": "B_10.bin",
+      "matrix": "B",
+      "n": 10,
+      "bytes": 800,
+      "sha256": "ae01a466fe3ce469229497030bc40ff4d438fb2315a1a97cd46c255412c84ac4",
+      "min": -0.9639388740336325,
+      "max": 0.9955199745488281
+    },
+    {
+      "file": "A_50.bin",
+      "matrix": "A",
+      "n": 50,
+      "bytes": 20000,
+      "sha256": "3dd05a7f844275757e76a6d731e546ab4bda000331dc7914e5e48100a023afb7",
+      "min": -0.9974682328226623,
+      "max": 0.9986684589837576
+    },
+    {
+      "file": "B_50.bin",
+      "matrix": "B",
+      "n": 50,
+      "bytes": 20000,
+      "sha256": "a83be40de71c86273ba27c1f8741e361c5e6a6eefd5f4a0b4693aceecd6c910a",
+      "min": -0.9989689113122515,
+      "max": 0.9996432970160993
+    },
+    {
+      "file": "A_100.bin",
+      "matrix": "A",
+      "n": 100,
+      "bytes": 80000,
+      "sha256": "2e8a2d70580811220dc14c0eac4aab354fb2828b549a93db2a3dcae5e419d609",
+      "min": -0.9997346027106846,
+      "max": 0.9999819532842125
+    },
+    {
+      "file": "B_100.bin",
+      "matrix": "B",
+      "n": 100,
+      "bytes": 80000,
+      "sha256": "fe7e5f532b16469cbe4deef5e6065dcec69f0c92ba2558118b992bb957228122",
+      "min": -0.9997510108171221,
+      "max": 0.9999299344012291
+    },
+    {
+      "file": "A_200.bin",
+      "matrix": "A",
+      "n": 200,
+      "bytes": 320000,
+      "sha256": "024190112c79f3d611bb4691ba66784c601bb5bcd60b91d3c587e8a2032d4c85",
+      "min": -0.9999944750188772,
+      "max": 0.9999790580277419
+    },
+    {
+      "file": "B_200.bin",
+      "matrix": "B",
+      "n": 200,
+      "bytes": 320000,
+      "sha256": "94c60ba494af9c7294cc58c406496e658308f2301b577c1d659fedc3fee04afc",
+      "min": -0.9999121122217918,
+      "max": 0.9999698754528319
+    },
+    {
+      "file": "A_500.bin",
+      "matrix": "A",
+      "n": 500,
+      "bytes": 2000000,
+      "sha256": "65fd8e1b20d934bbe4dbe23e18ac9e7768963102889a259043525e44edf233ac",
+      "min": -0.9999970006263892,
+      "max": 0.9999876466456825
+    },
+    {
+      "file": "B_500.bin",
+      "matrix": "B",
+      "n": 500,
+      "bytes": 2000000,
+      "sha256": "1cafe314641a185c153ca175b7837a99614945e4b3509e8948829bf2fdd34c68",
+      "min": -0.9999809435461886,
+      "max": 0.9999802279034826
+    },
+    {
+      "file": "A_1000.bin",
+      "matrix": "A",
+      "n": 1000,
+      "bytes": 8000000,
+      "sha256": "bce223d487a6a6a4ac32f5db93a526c11f8028b42554050df9ab001fbac8d5f8",
+      "min": -0.9999995366019485,
+      "max": 0.9999984678961915
+    },
+    {
+      "file": "B_1000.bin",
+      "matrix": "B",
+      "n": 1000,
+      "bytes": 8000000,
+      "sha256": "ec958b9f6cba2e2a9fe170daa8f7392a8d17d6a95d9d42e4ae39e730a7a90199",
+      "min": -0.9999989333652348,
+      "max": 0.9999994387978786
+    },
+    {
+      "file": "A_2000.bin",
+      "matrix": "A",
+      "n": 2000,
+      "bytes": 32000000,
+      "sha256": "74c3b9b28c6ebd5f4cef854a176220002c00164478ad3a417e4b229598998ab7",
+      "min": -0.9999997704315469,
+      "max": 0.9999991739184706
+    },
+    {
+      "file": "B_2000.bin",
+      "matrix": "B",
+      "n": 2000,
+      "bytes": 32000000,
+      "sha256": "c2aaf4464a4c0c11d2656b94a45f26a7a9bd3ef4e507d89af815d196f1d28605",
+      "min": -0.9999996313130515,
+      "max": 0.9999999273420781
+    }
+  ]
+}
