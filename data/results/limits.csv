@@ -1,0 +1,4 @@
+lang,largest_feasible_n,largest_feasible_median_s,attempted_but_over_budget,killed_before_first_kernel,peak_rss_ok_MB
+python,500,24.193,,"1000, 2000",46.0
+java,1000,5.246,,2000,106.0
+c,1000,2.27,2000 (76 s probe),,27.0
