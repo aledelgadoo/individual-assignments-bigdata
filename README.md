@@ -43,7 +43,7 @@ matrix-multiplication-study/
 # 1. Generate the shared inputs (fixed seed, byte-identical for all languages)
 python scripts/generate_inputs.py
 
-# 2. Verify correctness before any benchmarking  (Phase 2, todo)
+# 2. Verify correctness before any benchmarking
 python scripts/check_correctness.py
 
 # 3. Run the benchmark suite                     (Phase 4, todo)
@@ -57,7 +57,7 @@ jupyter notebook notebooks/01_analysis.ipynb
 
 - [x] Phase 0: repository skeleton
 - [x] Phase 1: shared input generation
-- [ ] Phase 2: correctness validation
+- [x] Phase 2: correctness validation
 - [ ] Phase 3: timing harnesses
 - [ ] Phase 4: benchmark orchestrator
 - [ ] Phase 5: full measurement campaign
