@@ -46,11 +46,14 @@ python scripts/generate_inputs.py
 # 2. Verify correctness before any benchmarking
 python scripts/check_correctness.py
 
-# 3. Run the benchmark suite                     (Phase 4, todo)
+# 3. Run the benchmark suite                     (Phase 4)
 python scripts/run_benchmark.py
 
-# 4. Analyse the raw measurements                (Phase 6, todo)
-jupyter notebook notebooks/01_analysis.ipynb
+# 4. Analyse the raw measurements                (Phase 6)
+jupyter nbconvert --to notebook --execute notebooks/01_analysis.ipynb
+
+# 5. Build the report                            (Phase 7)
+cd reports && latexmk -pdf Assignment01_DelgadoValera_Report.tex
 ```
 
 ## Status
@@ -58,9 +61,9 @@ jupyter notebook notebooks/01_analysis.ipynb
 - [x] Phase 0: repository skeleton
 - [x] Phase 1: shared input generation
 - [x] Phase 2: correctness validation
-- [ ] Phase 3: timing harnesses
-- [ ] Phase 4: benchmark orchestrator
-- [ ] Phase 5: full measurement campaign
-- [ ] Phase 6: analysis notebook
-- [ ] Phase 7: LaTeX report
-- [ ] Phase 8: final reproducibility review
+- [x] Phase 3: timing harnesses
+- [x] Phase 4: benchmark orchestrator
+- [x] Phase 5: full measurement campaign
+- [x] Phase 6: analysis notebook
+- [x] Phase 7: LaTeX report
+- [x] Phase 8: final reproducibility review
