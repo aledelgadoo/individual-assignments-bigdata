@@ -180,12 +180,18 @@ public class MatMul {
             // One untimed kernel first: the budget gate must see the JVM in a
             // warm state (JIT compilation), not the interpreter speed of the
             // very first run. The timed kernel is the gate measurement.
+            long tw0 = System.nanoTime();
             matmulInto(A, B, C);
+            long tw1 = System.nanoTime();
+            emit("{\"mode\":\"probe\",\"lang\":\"" + LANG + "\"," +
+                    "\"n\":" + n + ",\"phase\":\"warmup\"," +
+                    "\"kernel_total_ns\":" + (tw1 - tw0) + "}");
             long t0 = System.nanoTime();
             matmulInto(A, B, C);
             long t1 = System.nanoTime();
             emit("{\"mode\":\"probe\",\"lang\":\"" + LANG + "\"," +
-                    "\"n\":" + n + ",\"kernel_total_ns\":" + (t1 - t0) +
+                    "\"n\":" + n + ",\"phase\":\"timed\"," +
+                    "\"kernel_total_ns\":" + (t1 - t0) +
                     ",\"checksum\":" + Double.toString(checksum(C)) + "}");
             return;
         }
