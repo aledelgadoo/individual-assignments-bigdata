@@ -15,7 +15,7 @@ Author: Alejandro Delgado Valera.
 ## Repository structure
 
 ```
-matrix-multiplication-study/
+individual-assignments-bigdata/
 ├── data/
 │   ├── inputs/          # shared input matrices (binaries + meta.json manifest)
 │   └── results/         # raw and summary measurements (CSV/JSON)
@@ -31,10 +31,11 @@ matrix-multiplication-study/
 
 ## Prerequisites
 
-- Python 3.11+ with `numpy` (input generation and correctness reference only,
-  never inside the measured kernel), `psutil`, `pandas`, `matplotlib`, `jupyter`
-- JDK 21 (`java`, `javac`)
-- GCC (MinGW-w64 on Windows)
+- Python 3.11.9 with `numpy` 2.2.6 (input generation and correctness reference
+  only, never inside the measured kernel), `psutil` 7.1.0, `pandas`, `matplotlib`,
+  `jupyter`
+- OpenJDK 21.0.10 (`java`, `javac`)
+- GCC 16.1.0 (MinGW-w64 on Windows)
 - A LaTeX distribution (`pdflatex`, `latexmk`) for the report
 
 ## How to reproduce
@@ -55,15 +56,3 @@ jupyter nbconvert --to notebook --execute notebooks/01_analysis.ipynb
 # 5. Build the report                            (Phase 7)
 cd reports && latexmk -pdf Assignment01_DelgadoValera_Report.tex
 ```
-
-## Status
-
-- [x] Phase 0: repository skeleton
-- [x] Phase 1: shared input generation
-- [x] Phase 2: correctness validation
-- [x] Phase 3: timing harnesses
-- [x] Phase 4: benchmark orchestrator
-- [x] Phase 5: full measurement campaign
-- [x] Phase 6: analysis notebook
-- [x] Phase 7: LaTeX report
-- [x] Phase 8: final reproducibility review

@@ -15,8 +15,9 @@
 A Controlled Benchmarking Study}}
 \author{Alejandro Delgado Valera\\
 \small BIG DATA -- Individual Assignment 1\\
-\small Grado en Ciencia e Ingenieria de Datos\\
-\small Universidad de Las Palmas de Gran Canaria}
+\small Grado en Ciencia e Ingenier{\'i}a de Datos\\
+\small Universidad de Las Palmas de Gran Canaria\\
+\small \url{https://github.com/aledelgadoo/individual-assignments-bigdata}}
 \date{October 7, 2026}
 
 \begin{document}
@@ -452,26 +453,14 @@ loop reordering, sparse storage) that Assignment~2 addresses.
 
 \section{Reproducibility materials}
 
-Repository: \texttt{individual-assignments-bigdata} (GitHub; state the exact
-commit when submitting). Layout: \texttt{scripts/} (input generation,
-correctness validation, build, environment snapshot, benchmark orchestrator),
-\texttt{src/\{python,java,c\}/} (implementations), \texttt{data/inputs/}
-(generated matrices + SHA-256 manifest), \texttt{data/results/}
-(\texttt{raw\_timings.csv}, \texttt{configs.csv}, \texttt{correctness\_report.csv},
-\texttt{summary.csv}, \texttt{limits.csv}, \texttt{environment.json}, per-process
-JSON logs), \texttt{notebooks/01\_analysis.ipynb} (executed; regenerates every
-table and figure) and \texttt{reports/} (this PDF and \texttt{figures/}).
-
-Exact commands:
-\begin{verbatim}
-python scripts/generate_inputs.py
-python scripts/generate_inputs.py --check
-python scripts/check_correctness.py
-python scripts/collect_env.py
-python scripts/run_benchmark.py
-jupyter nbconvert --to notebook --execute notebooks/01_analysis.ipynb
-cd reports && latexmk -pdf Assignment01_DelgadoValera_Report.tex
-\end{verbatim}
+{\sloppy
+All source code, shared inputs, raw measurements (CSV) and the executed analysis
+notebook live in the public repository
+\url{https://github.com/aledelgadoo/individual-assignments-bigdata};
+the Git tag \texttt{assignment-1} marks the exact state submitted for this
+assignment. The repository's \texttt{README.md} documents the dependency
+versions and the exact build, run and analysis commands that regenerate this
+report end to end.\par}
 
 \section*{Generative-AI usage statement}
 
