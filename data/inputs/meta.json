@@ -1,16 +1,16 @@
 {
-  "description": "Shared input matrices for Assignment 1 (basic dense matrix multiplication).",
+  "description": "Shared input matrices for Assignment 2 (dense optimisations and CSR sparse multiplication).",
   "generator": "numpy.random.Generator.uniform (PCG64)",
   "seed": 42,
-  "seed_scheme": "numpy.random.default_rng([seed, n, matrix_index]) with matrix_index: A=0, B=1",
+  "seed_scheme_dense": "numpy.random.default_rng([seed, n, matrix_index]) with matrix_index: A=0, B=1 (identical to Assignment 1)",
+  "seed_scheme_sparse": "numpy.random.default_rng([seed, n, sparsity, 2]) boolean keep-mask; zeros where mask selects",
   "value_range": [
     -1.0,
     1.0
   ],
   "dtype": "float64 (IEEE-754 binary64), little-endian '<f8'",
   "layout": "row-major (C order)",
-  "dimensions": "one pair of n x n square matrices (A, B) per size",
-  "sizes": [
+  "dense_sizes": [
     10,
     50,
     100,
@@ -19,135 +19,292 @@
     1000,
     2000
   ],
+  "sparsity_levels_percent": [
+    1,
+    5,
+    10,
+    25,
+    50,
+    75,
+    90,
+    95,
+    99
+  ],
+  "sparse_n": 1000,
   "numpy_version": "2.2.6",
-  "generated_utc": "2026-10-06T19:25:11+00:00",
+  "generated_utc": "2026-10-20T10:12:11+00:00",
   "script": "scripts/generate_inputs.py",
   "files": [
     {
       "file": "A_10.bin",
-      "matrix": "A",
       "n": 10,
       "bytes": 800,
       "sha256": "0ed3ab5b179be54cf6e037a94a4e421488ebaad9b96f9b6d12bc412de2bc3ea2",
       "min": -0.9710478927603443,
-      "max": 0.997552720771725
+      "max": 0.997552720771725,
+      "matrix": "A",
+      "kind": "dense",
+      "seed_scheme": "default_rng([42, 10, 0])"
     },
     {
       "file": "B_10.bin",
-      "matrix": "B",
       "n": 10,
       "bytes": 800,
       "sha256": "ae01a466fe3ce469229497030bc40ff4d438fb2315a1a97cd46c255412c84ac4",
       "min": -0.9639388740336325,
-      "max": 0.9955199745488281
+      "max": 0.9955199745488281,
+      "matrix": "B",
+      "kind": "dense",
+      "seed_scheme": "default_rng([42, 10, 1])"
     },
     {
       "file": "A_50.bin",
-      "matrix": "A",
       "n": 50,
       "bytes": 20000,
       "sha256": "3dd05a7f844275757e76a6d731e546ab4bda000331dc7914e5e48100a023afb7",
       "min": -0.9974682328226623,
-      "max": 0.9986684589837576
+      "max": 0.9986684589837576,
+      "matrix": "A",
+      "kind": "dense",
+      "seed_scheme": "default_rng([42, 50, 0])"
     },
     {
       "file": "B_50.bin",
-      "matrix": "B",
       "n": 50,
       "bytes": 20000,
       "sha256": "a83be40de71c86273ba27c1f8741e361c5e6a6eefd5f4a0b4693aceecd6c910a",
       "min": -0.9989689113122515,
-      "max": 0.9996432970160993
+      "max": 0.9996432970160993,
+      "matrix": "B",
+      "kind": "dense",
+      "seed_scheme": "default_rng([42, 50, 1])"
     },
     {
       "file": "A_100.bin",
-      "matrix": "A",
       "n": 100,
       "bytes": 80000,
       "sha256": "2e8a2d70580811220dc14c0eac4aab354fb2828b549a93db2a3dcae5e419d609",
       "min": -0.9997346027106846,
-      "max": 0.9999819532842125
+      "max": 0.9999819532842125,
+      "matrix": "A",
+      "kind": "dense",
+      "seed_scheme": "default_rng([42, 100, 0])"
     },
     {
       "file": "B_100.bin",
-      "matrix": "B",
       "n": 100,
       "bytes": 80000,
       "sha256": "fe7e5f532b16469cbe4deef5e6065dcec69f0c92ba2558118b992bb957228122",
       "min": -0.9997510108171221,
-      "max": 0.9999299344012291
+      "max": 0.9999299344012291,
+      "matrix": "B",
+      "kind": "dense",
+      "seed_scheme": "default_rng([42, 100, 1])"
     },
     {
       "file": "A_200.bin",
-      "matrix": "A",
       "n": 200,
       "bytes": 320000,
       "sha256": "024190112c79f3d611bb4691ba66784c601bb5bcd60b91d3c587e8a2032d4c85",
       "min": -0.9999944750188772,
-      "max": 0.9999790580277419
+      "max": 0.9999790580277419,
+      "matrix": "A",
+      "kind": "dense",
+      "seed_scheme": "default_rng([42, 200, 0])"
     },
     {
       "file": "B_200.bin",
-      "matrix": "B",
       "n": 200,
       "bytes": 320000,
       "sha256": "94c60ba494af9c7294cc58c406496e658308f2301b577c1d659fedc3fee04afc",
       "min": -0.9999121122217918,
-      "max": 0.9999698754528319
+      "max": 0.9999698754528319,
+      "matrix": "B",
+      "kind": "dense",
+      "seed_scheme": "default_rng([42, 200, 1])"
     },
     {
       "file": "A_500.bin",
-      "matrix": "A",
       "n": 500,
       "bytes": 2000000,
       "sha256": "65fd8e1b20d934bbe4dbe23e18ac9e7768963102889a259043525e44edf233ac",
       "min": -0.9999970006263892,
-      "max": 0.9999876466456825
+      "max": 0.9999876466456825,
+      "matrix": "A",
+      "kind": "dense",
+      "seed_scheme": "default_rng([42, 500, 0])"
     },
     {
       "file": "B_500.bin",
-      "matrix": "B",
       "n": 500,
       "bytes": 2000000,
       "sha256": "1cafe314641a185c153ca175b7837a99614945e4b3509e8948829bf2fdd34c68",
       "min": -0.9999809435461886,
-      "max": 0.9999802279034826
+      "max": 0.9999802279034826,
+      "matrix": "B",
+      "kind": "dense",
+      "seed_scheme": "default_rng([42, 500, 1])"
     },
     {
       "file": "A_1000.bin",
-      "matrix": "A",
       "n": 1000,
       "bytes": 8000000,
       "sha256": "bce223d487a6a6a4ac32f5db93a526c11f8028b42554050df9ab001fbac8d5f8",
       "min": -0.9999995366019485,
-      "max": 0.9999984678961915
+      "max": 0.9999984678961915,
+      "matrix": "A",
+      "kind": "dense",
+      "seed_scheme": "default_rng([42, 1000, 0])"
     },
     {
       "file": "B_1000.bin",
-      "matrix": "B",
       "n": 1000,
       "bytes": 8000000,
       "sha256": "ec958b9f6cba2e2a9fe170daa8f7392a8d17d6a95d9d42e4ae39e730a7a90199",
       "min": -0.9999989333652348,
-      "max": 0.9999994387978786
+      "max": 0.9999994387978786,
+      "matrix": "B",
+      "kind": "dense",
+      "seed_scheme": "default_rng([42, 1000, 1])"
     },
     {
       "file": "A_2000.bin",
-      "matrix": "A",
       "n": 2000,
       "bytes": 32000000,
       "sha256": "74c3b9b28c6ebd5f4cef854a176220002c00164478ad3a417e4b229598998ab7",
       "min": -0.9999997704315469,
-      "max": 0.9999991739184706
+      "max": 0.9999991739184706,
+      "matrix": "A",
+      "kind": "dense",
+      "seed_scheme": "default_rng([42, 2000, 0])"
     },
     {
       "file": "B_2000.bin",
-      "matrix": "B",
       "n": 2000,
       "bytes": 32000000,
       "sha256": "c2aaf4464a4c0c11d2656b94a45f26a7a9bd3ef4e507d89af815d196f1d28605",
       "min": -0.9999996313130515,
-      "max": 0.9999999273420781
+      "max": 0.9999999273420781,
+      "matrix": "B",
+      "kind": "dense",
+      "seed_scheme": "default_rng([42, 2000, 1])"
+    },
+    {
+      "file": "A_1000_sp01.bin",
+      "n": 1000,
+      "bytes": 8000000,
+      "sha256": "7e63594fef1a14d2639f64f81cf5e6f69cd95617dfeec9c02eabb65c5d60c914",
+      "min": -0.9999995366019485,
+      "max": 0.9999984678961915,
+      "matrix": "A",
+      "kind": "sparse",
+      "sparsity_percent": 1,
+      "nnz": 989972,
+      "seed_scheme": "default_rng([42, 1000, 1, 2]) mask over dense A default_rng([42, 1000, 0])"
+    },
+    {
+      "file": "A_1000_sp05.bin",
+      "n": 1000,
+      "bytes": 8000000,
+      "sha256": "7af9c209981d30ee5b8bf57f1fef0493f8028b39d9b09d6561662e3d08f990a6",
+      "min": -0.9999995366019485,
+      "max": 0.9999984678961915,
+      "matrix": "A",
+      "kind": "sparse",
+      "sparsity_percent": 5,
+      "nnz": 949910,
+      "seed_scheme": "default_rng([42, 1000, 5, 2]) mask over dense A default_rng([42, 1000, 0])"
+    },
+    {
+      "file": "A_1000_sp10.bin",
+      "n": 1000,
+      "bytes": 8000000,
+      "sha256": "c0d2e3ccf81eed164e726793b42bc609c3904c8ca2a6c0571dd6e9484c472d3c",
+      "min": -0.9999993636834492,
+      "max": 0.9999984678961915,
+      "matrix": "A",
+      "kind": "sparse",
+      "sparsity_percent": 10,
+      "nnz": 900120,
+      "seed_scheme": "default_rng([42, 1000, 10, 2]) mask over dense A default_rng([42, 1000, 0])"
+    },
+    {
+      "file": "A_1000_sp25.bin",
+      "n": 1000,
+      "bytes": 8000000,
+      "sha256": "3687f56e74124d5f2fa7423df8ec35cdc0d9fa153269bf8841131e4569896c26",
+      "min": -0.9999995366019485,
+      "max": 0.9999984678961915,
+      "matrix": "A",
+      "kind": "sparse",
+      "sparsity_percent": 25,
+      "nnz": 749936,
+      "seed_scheme": "default_rng([42, 1000, 25, 2]) mask over dense A default_rng([42, 1000, 0])"
+    },
+    {
+      "file": "A_1000_sp50.bin",
+      "n": 1000,
+      "bytes": 8000000,
+      "sha256": "301ead3a0a87896f86a44389898192ecfbfc32272b21b6e077a1fa70ce08d23b",
+      "min": -0.9999995366019485,
+      "max": 0.9999984678961915,
+      "matrix": "A",
+      "kind": "sparse",
+      "sparsity_percent": 50,
+      "nnz": 499827,
+      "seed_scheme": "default_rng([42, 1000, 50, 2]) mask over dense A default_rng([42, 1000, 0])"
+    },
+    {
+      "file": "A_1000_sp75.bin",
+      "n": 1000,
+      "bytes": 8000000,
+      "sha256": "16e1f06a1f7696dd09860baa61fae1f2d38b8ad3c4eda762782cd35e8582b03b",
+      "min": -0.9999939903642845,
+      "max": 0.9999677306406964,
+      "matrix": "A",
+      "kind": "sparse",
+      "sparsity_percent": 75,
+      "nnz": 249722,
+      "seed_scheme": "default_rng([42, 1000, 75, 2]) mask over dense A default_rng([42, 1000, 0])"
+    },
+    {
+      "file": "A_1000_sp90.bin",
+      "n": 1000,
+      "bytes": 8000000,
+      "sha256": "cd32cb1ced0759048161ff6f232d6f1538bbe7e077efe2e54e934d05705937c7",
+      "min": -0.9999933989587235,
+      "max": 0.9999984678961915,
+      "matrix": "A",
+      "kind": "sparse",
+      "sparsity_percent": 90,
+      "nnz": 100375,
+      "seed_scheme": "default_rng([42, 1000, 90, 2]) mask over dense A default_rng([42, 1000, 0])"
+    },
+    {
+      "file": "A_1000_sp95.bin",
+      "n": 1000,
+      "bytes": 8000000,
+      "sha256": "f719ee40157fcbd15a8dccb47aa2de6427caad4ff20f586df1b59abffe251175",
+      "min": -0.9999975921336828,
+      "max": 0.999948119754005,
+      "matrix": "A",
+      "kind": "sparse",
+      "sparsity_percent": 95,
+      "nnz": 50189,
+      "seed_scheme": "default_rng([42, 1000, 95, 2]) mask over dense A default_rng([42, 1000, 0])"
+    },
+    {
+      "file": "A_1000_sp99.bin",
+      "n": 1000,
+      "bytes": 8000000,
+      "sha256": "55c6dac6a987d94c6c2a74d12bed8fba41b8d533b83253e97d084a26f8a21612",
+      "min": -0.9998624275526864,
+      "max": 0.9997763277807334,
+      "matrix": "A",
+      "kind": "sparse",
+      "sparsity_percent": 99,
+      "nnz": 9844,
+      "seed_scheme": "default_rng([42, 1000, 99, 2]) mask over dense A default_rng([42, 1000, 0])"
     }
   ]
 }

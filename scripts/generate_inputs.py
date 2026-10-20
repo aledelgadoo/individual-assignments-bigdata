@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
-"""Generate the shared input matrices for the matrix multiplication study.
+"""Generate the shared input matrices for Assignment 2.
 
-For every declared size n, two dense n x n matrices (A and B) are written as
-raw little-endian IEEE-754 binary64 files in row-major (C) order, plus a
-meta.json manifest recording the seed, generator, value range, dimensions and
-SHA-256 checksum of every file.
+Dense Part A: for every declared size n, two dense n x n matrices (A and B)
+are written as raw little-endian IEEE-754 binary64 files in row-major order,
+using exactly the generator and seed scheme of Assignment 1 so the validated
+baseline and inputs are reused unchanged.
 
-The same files are read by the Python, Java and C implementations, so all
-three languages multiply byte-identical logical inputs. NumPy is used only for
-generation and never inside a measured kernel.
+Sparse Part B: for every declared sparsity level p (percentage of zeros) at
+n = 1000, a sparse variant of the same A matrix is written by zeroing the
+entries selected by an independent deterministic mask stream. The dense
+matrix B is shared by every sparsity level.
+
+A meta.json manifest records the seed, generator, value range, dimensions,
+non-zero counts and SHA-256 checksum of every file.
 
 Usage:
     python scripts/generate_inputs.py             # generate everything
@@ -30,65 +34,91 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTDIR = ROOT / "data" / "inputs"
 DEFAULT_SEED = 42
 DEFAULT_SIZES = [10, 50, 100, 200, 500, 1000, 2000]
+SPARSITIES = [1, 5, 10, 25, 50, 75, 90, 95, 99]
+SPARSE_N = 1000
 VALUE_RANGE = (-1.0, 1.0)
 MATRICES = (("A", 0), ("B", 1))
 
 
 def make_matrix(n: int, matrix_index: int, seed: int) -> np.ndarray:
-    """Deterministic input matrix: uniform values in [-1, 1), float64.
-
-    Each (seed, n, matrix_index) triple derives an independent stream, so the
-    files do not depend on the order in which sizes are generated.
-    """
     rng = np.random.default_rng([seed, n, matrix_index])
     lo, hi = VALUE_RANGE
     return rng.uniform(lo, hi, size=(n, n)).astype("<f8")
+
+
+def make_sparse(n: int, sparsity: int, seed: int) -> tuple[np.ndarray, np.ndarray]:
+    base = make_matrix(n, 0, seed)
+    mask_rng = np.random.default_rng([seed, n, sparsity, 2])
+    keep = mask_rng.random((n, n)) >= (sparsity / 100.0)
+    arr = np.where(keep, base, 0.0).astype("<f8")
+    return arr, keep
 
 
 def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def write_entry(outdir: Path, name: str, arr: np.ndarray, entries: list, **extra) -> None:
+    path = outdir / f"{name}.bin"
+    payload = arr.tobytes(order="C")
+    path.write_bytes(payload)
+
+    back = np.fromfile(path, dtype="<f8")
+    if back.size != arr.size or not np.array_equal(back, arr.ravel(order="C")):
+        raise RuntimeError(f"read-back verification failed for {path}")
+    if len(payload) != 8 * arr.size:
+        raise RuntimeError(f"unexpected byte size for {path}")
+
+    entries.append({
+        "file": path.name,
+        "n": int(arr.shape[0]),
+        "bytes": len(payload),
+        "sha256": sha256_bytes(payload),
+        "min": float(arr.min()),
+        "max": float(arr.max()),
+        **extra,
+    })
+    print(f"  wrote {path.name:>20}  {len(payload):>9} bytes  "
+          f"sha256={entries[-1]['sha256'][:16]}...")
+
+
 def generate(sizes: list[int], seed: int, outdir: Path) -> dict:
     outdir.mkdir(parents=True, exist_ok=True)
     entries = []
+
     for n in sizes:
         for name, idx in MATRICES:
-            path = outdir / f"{name}_{n}.bin"
             arr = make_matrix(n, idx, seed)
-            payload = arr.tobytes(order="C")
-            path.write_bytes(payload)
+            write_entry(outdir, f"{name}_{n}", arr, entries,
+                        matrix=name, kind="dense",
+                        seed_scheme=f"default_rng([{seed}, {n}, {idx}])")
 
-            # Read-back verification: what the benchmarking programs will load.
-            back = np.fromfile(path, dtype="<f8")
-            if back.size != n * n or not np.array_equal(back, arr.ravel(order="C")):
-                raise RuntimeError(f"read-back verification failed for {path}")
-            if len(payload) != 8 * n * n:
-                raise RuntimeError(f"unexpected byte size for {path}")
-
-            entries.append(
-                {
-                    "file": path.name,
-                    "matrix": name,
-                    "n": n,
-                    "bytes": len(payload),
-                    "sha256": sha256_bytes(payload),
-                    "min": float(arr.min()),
-                    "max": float(arr.max()),
-                }
-            )
-            print(f"  wrote {path.name:>12}  {len(payload):>9} bytes  sha256={entries[-1]['sha256'][:16]}...")
+    for p in SPARSITIES:
+        arr, keep = make_sparse(SPARSE_N, p, seed)
+        nnz = int(np.count_nonzero(arr))
+        if not (0 < nnz < arr.size):
+            raise RuntimeError(f"degenerate sparsity {p}% (nnz={nnz})")
+        write_entry(outdir, f"A_{SPARSE_N}_sp{p:02d}", arr, entries,
+                    matrix="A", kind="sparse",
+                    sparsity_percent=p, nnz=nnz,
+                    seed_scheme=f"default_rng([{seed}, {SPARSE_N}, {p}, 2]) mask "
+                                f"over dense A default_rng([{seed}, {SPARSE_N}, 0])")
 
     meta = {
-        "description": "Shared input matrices for Assignment 1 (basic dense matrix multiplication).",
+        "description": "Shared input matrices for Assignment 2 (dense "
+                       "optimisations and CSR sparse multiplication).",
         "generator": "numpy.random.Generator.uniform (PCG64)",
         "seed": seed,
-        "seed_scheme": "numpy.random.default_rng([seed, n, matrix_index]) with matrix_index: A=0, B=1",
+        "seed_scheme_dense": "numpy.random.default_rng([seed, n, matrix_index]) "
+                             "with matrix_index: A=0, B=1 (identical to Assignment 1)",
+        "seed_scheme_sparse": "numpy.random.default_rng([seed, n, sparsity, 2]) "
+                              "boolean keep-mask; zeros where mask selects",
         "value_range": list(VALUE_RANGE),
         "dtype": "float64 (IEEE-754 binary64), little-endian '<f8'",
         "layout": "row-major (C order)",
-        "dimensions": "one pair of n x n square matrices (A, B) per size",
-        "sizes": list(sizes),
+        "dense_sizes": list(sizes),
+        "sparsity_levels_percent": list(SPARSITIES),
+        "sparse_n": SPARSE_N,
         "numpy_version": np.__version__,
         "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "script": "scripts/generate_inputs.py",
@@ -103,7 +133,8 @@ def generate(sizes: list[int], seed: int, outdir: Path) -> dict:
 def check(outdir: Path) -> int:
     meta_path = outdir / "meta.json"
     if not meta_path.exists():
-        print(f"ERROR: {meta_path} not found; run without --check first.", file=sys.stderr)
+        print(f"ERROR: {meta_path} not found; run without --check first.",
+              file=sys.stderr)
         return 1
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     failures = 0
@@ -119,7 +150,8 @@ def check(outdir: Path) -> int:
         status = "ok  " if (ok_size and ok_hash) else "FAIL"
         if not (ok_size and ok_hash):
             failures += 1
-        print(f"{status} {entry['file']}: size={len(payload)} sha256={sha256_bytes(payload)[:16]}...")
+        print(f"{status} {entry['file']}: size={len(payload)} "
+              f"sha256={sha256_bytes(payload)[:16]}...")
     if failures:
         print(f"{failures} file(s) failed verification.", file=sys.stderr)
         return 1
@@ -128,17 +160,19 @@ def check(outdir: Path) -> int:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--seed", type=int, default=DEFAULT_SEED, help="random seed (default: %(default)s)")
-    ap.add_argument("--sizes", type=int, nargs="+", default=DEFAULT_SIZES, help="matrix side lengths")
-    ap.add_argument("--outdir", type=Path, default=DEFAULT_OUTDIR, help="output directory")
-    ap.add_argument("--check", action="store_true", help="verify existing files against meta.json")
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    ap.add_argument("--sizes", type=int, nargs="+", default=DEFAULT_SIZES)
+    ap.add_argument("--outdir", type=Path, default=DEFAULT_OUTDIR)
+    ap.add_argument("--check", action="store_true")
     args = ap.parse_args()
 
     if args.check:
         return check(args.outdir)
 
-    print(f"Generating inputs: sizes={args.sizes} seed={args.seed} outdir={args.outdir}")
+    print(f"Generating inputs: sizes={args.sizes} seed={args.seed} "
+          f"sparsities={SPARSITIES} sparse_n={SPARSE_N} outdir={args.outdir}")
     generate(args.sizes, args.seed, args.outdir)
     print("Done. Verify anytime with: python scripts/generate_inputs.py --check")
     return 0

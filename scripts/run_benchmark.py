@@ -1,23 +1,32 @@
 #!/usr/bin/env python3
-"""Benchmark orchestrator for Assignment 1 (Phases 4-5).
+"""Benchmark orchestrator for Assignment 2 (dense optimisations + CSR).
 
-For every (language, n) configuration this script runs, sequentially:
+Dense Part A: every (method, n) with method in {ijk, ikj, block} and the
+Assignment 1 size sequence. Sparse Part B: every (method, sparsity) with
+method in {ijk, ikj, block, csr}, n = 1000 fixed. Block-size tuning runs
+into a separate CSV (--phase tune).
 
-1. probe  - feasibility gate: one warm-up kernel + one timed kernel (Java
-   only prints both; Python/C print a single kernel, which is already the
-   warmed measurement because they have no JIT). The gate passes when the
-   timed kernel <= budget. A completed-but-failing probe is retried once;
-   a probe killed by its deadline is recorded as timeout without retry.
-2. bench  - if the gate passed: warm-ups (excluded), then `--reps` timed
-   repetitions with a batch size calibrated from the last warm-up so each
-   timing lasts >= 0.2 s.
+Per configuration:
 
-Everything is written incrementally so an interrupted campaign keeps its
-partial results:
+1. probe  - feasibility gate: one warm-up kernel (excluded) + one timed
+            kernel. The gate passes when the timed kernel <= budget. A
+            completed-but-failing probe is retried once; a probe killed by
+            its deadline is recorded as timeout without retry.
+2. bench  - if the gate passed: warm-ups (excluded), then --reps timed
+            repetitions with a batch size calibrated from the last warm-up
+            so each timing lasts >= 0.2 s. CSR configurations additionally
+            time --reps dense-to-CSR conversions (reported separately, never
+            inside the multiplication timing).
 
-  data/results/raw_timings.csv   one row per timed kernel event
-  data/results/configs.csv       one row per (lang, n) configuration
-  data/results/raw_detail/*.json raw stdout of every child process
+Every child process is pinned to CPU0 (a P-core) unless --no-pin is given.
+
+Incremental outputs:
+
+  data/results/raw_timings.csv      one row per timed kernel event
+  data/results/conversions.csv      one row per timed dense-to-CSR conversion
+  data/results/configs.csv          one row per configuration
+  data/results/blocksize_tuning.csv block-size sweep (--phase tune)
+  data/results/raw_detail/*.json    raw stdout of every child process
 """
 from __future__ import annotations
 
@@ -39,51 +48,58 @@ INPUTS = ROOT / "data" / "inputs"
 RESULTS = ROOT / "data" / "results"
 DETAIL_DIR = RESULTS / "raw_detail"
 RAW_CSV = RESULTS / "raw_timings.csv"
+CONV_CSV = RESULTS / "conversions.csv"
 CFG_CSV = RESULTS / "configs.csv"
+TUNE_CSV = RESULTS / "blocksize_tuning.csv"
+EXE = ROOT / "src" / ("matmul2.exe" if sys.platform == "win32" else "matmul2")
 
 BUDGET_S = 60
 BUDGET_NS = BUDGET_S * 1_000_000_000
 REPS = 5
 MIN_BATCH_NS = 200_000_000
 MEM_LIMIT_BYTES = 4 * 1024**3
+WARMUPS = 1
 SIZES = [10, 50, 100, 200, 500, 1000, 2000]
-LANGS = ["python", "java", "c"]
-JAVA_BENCH_FLAGS = ["-XX:CompileCommand=dontinline,MatMul::matmulInto"]
+SPARSITIES = [1, 5, 10, 25, 50, 75, 90, 95, 99]
+SPARSE_N = 1000
+DENSE_METHODS = ["ijk", "ikj", "block"]
+SPARSE_METHODS = ["ijk", "ikj", "block", "csr"]
+TUNE_BLOCKSIZES = [16, 32, 64, 128]
+TUNE_SIZES = [500, 1000, 2000]
 
-RAW_FIELDS = ["lang", "n", "phase", "rep", "batch", "kernel_total_ns",
-              "kernel_per_mult_ns", "checksum", "attempt"]
-CFG_FIELDS = ["lang", "n", "status", "reason", "probe1_ns", "probe2_ns",
-              "gate_ns", "warmups", "reps", "batch", "exit_code", "wall_s",
-              "peak_rss_mb", "sys_cpu_mean_pct", "sys_cpu_max_pct"]
-
-
-def warmups_for(lang: str, n: int) -> int:
-    if lang != "java":
-        return 1
-    if n < 50:
-        return 20000
-    if n <= 100:
-        return 20
-    return 5
+RAW_FIELDS = ["method", "n", "sparsity", "phase", "rep", "batch",
+              "kernel_total_ns", "kernel_per_mult_ns", "checksum", "attempt",
+              "blocksize"]
+CONV_FIELDS = ["n", "sparsity", "rep", "convert_ns", "nnz"]
+CFG_FIELDS = ["phase", "method", "n", "sparsity", "status", "reason",
+              "probe1_ns", "probe2_ns", "gate_ns", "warmups", "reps", "batch",
+              "blocksize", "exit_code", "wall_s", "peak_rss_mb",
+              "sys_cpu_mean_pct", "sys_cpu_max_pct"]
+TUNE_FIELDS = ["blocksize", "n", "rep", "kernel_per_mult_ns"]
 
 
-def cmd_for(lang: str, mode: str, n: int, extra: list[str]) -> list[str]:
-    a = INPUTS / f"A_{n}.bin"
-    b = INPUTS / f"B_{n}.bin"
-    base = ["--a", str(a), "--b", str(b), "--n", str(n), *extra]
-    if lang == "python":
-        return [sys.executable, str(ROOT / "src" / "python" / "matmul.py"), mode, *base]
-    if lang == "c":
-        return [str(ROOT / "src" / "c" / "matmul.exe"), mode, *base]
-    flags = JAVA_BENCH_FLAGS if mode == "bench" else []
-    return ["java", *flags, "-cp", str(ROOT / "src" / "java"), "MatMul", mode, *base]
+def a_path(n: int, sparsity: int) -> Path:
+    if sparsity == 0:
+        return INPUTS / f"A_{n}.bin"
+    return INPUTS / f"A_{n}_sp{sparsity:02d}.bin"
+
+
+def cmd_for(method: str, mode: str, n: int, sparsity: int, blocksize: int,
+            pin: bool, extra: list[str]) -> list[str]:
+    cmd = [str(EXE), mode, "--method", method,
+           "--a", str(a_path(n, sparsity)), "--b", str(INPUTS / f"B_{n}.bin"),
+           "--n", str(n), "--sparsity", str(sparsity),
+           "--blocksize", str(blocksize)]
+    if pin:
+        cmd.append("--pin")
+    return cmd + extra
 
 
 @dataclass
 class RunResult:
     lines: list[dict] = field(default_factory=list)
     log: list[str] = field(default_factory=list)
-    killed: str | None = None          # deadline | memory
+    killed: str | None = None
     exit_code: int | None = None
     wall_s: float = 0.0
     peak_rss_mb: float = 0.0
@@ -91,7 +107,6 @@ class RunResult:
 
 
 def run_child(cmd: list[str], deadline_s: float, detail_path: Path) -> RunResult:
-    """Run cmd, stream stdout JSON lines, enforce wall-clock and memory limits."""
     res = RunResult()
     t0 = time.monotonic()
     proc = subprocess.Popen(
@@ -114,7 +129,7 @@ def run_child(cmd: list[str], deadline_s: float, detail_path: Path) -> RunResult
     stop = threading.Event()
 
     def sampler() -> None:
-        psutil.cpu_percent(None)  # prime
+        psutil.cpu_percent(None)
         while not stop.is_set():
             try:
                 rss = ps.memory_info().rss
@@ -155,7 +170,6 @@ def run_child(cmd: list[str], deadline_s: float, detail_path: Path) -> RunResult
             res.log.append(line)
 
     if not eof and res.killed is None:
-        # queue drained without sentinel should not happen; reap defensively
         try:
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
@@ -183,22 +197,29 @@ def run_child(cmd: list[str], deadline_s: float, detail_path: Path) -> RunResult
 class Writer:
     def __init__(self) -> None:
         RESULTS.mkdir(parents=True, exist_ok=True)
-        self.raw_new = not RAW_CSV.exists()
-        self.cfg_new = not CFG_CSV.exists()
         self.raw_fh = RAW_CSV.open("a", newline="", encoding="utf-8")
+        self.conv_fh = CONV_CSV.open("a", newline="", encoding="utf-8")
         self.cfg_fh = CFG_CSV.open("a", newline="", encoding="utf-8")
         self.raw = csv.DictWriter(self.raw_fh, fieldnames=RAW_FIELDS)
+        self.conv = csv.DictWriter(self.conv_fh, fieldnames=CONV_FIELDS)
         self.cfg = csv.DictWriter(self.cfg_fh, fieldnames=CFG_FIELDS)
-        if self.raw_new:
+        if self.raw_fh.tell() == 0:
             self.raw.writeheader()
-        if self.cfg_new:
+        if self.conv_fh.tell() == 0:
+            self.conv.writeheader()
+        if self.cfg_fh.tell() == 0:
             self.cfg.writeheader()
         self.raw_fh.flush()
+        self.conv_fh.flush()
         self.cfg_fh.flush()
 
     def raw_row(self, **kw) -> None:
         self.raw.writerow({k: kw.get(k, "") for k in RAW_FIELDS})
         self.raw_fh.flush()
+
+    def conv_row(self, **kw) -> None:
+        self.conv.writerow({k: kw.get(k, "") for k in CONV_FIELDS})
+        self.conv_fh.flush()
 
     def cfg_row(self, **kw) -> None:
         self.cfg.writerow({k: kw.get(k, "") for k in CFG_FIELDS})
@@ -206,59 +227,60 @@ class Writer:
 
     def close(self) -> None:
         self.raw_fh.close()
+        self.conv_fh.close()
         self.cfg_fh.close()
 
 
-def load_done() -> set[tuple[str, int]]:
-    done: set[tuple[str, int]] = set()
+def load_done() -> set[tuple[str, str, int, int]]:
+    done: set[tuple[str, str, int, int]] = set()
     if CFG_CSV.exists():
         with CFG_CSV.open(newline="", encoding="utf-8") as fh:
             for row in csv.DictReader(fh):
                 if row.get("status") == "ok":
-                    done.add((row["lang"], int(row["n"])))
+                    done.add((row["phase"], row["method"], int(row["n"]),
+                              int(row["sparsity"])))
     return done
 
 
-def run_probe(lang: str, n: int, w: Writer) -> tuple[str, list[int], float]:
-    """Returns (status, probe_ns_list, gate_ns)."""
-    detail = DETAIL_DIR / f"{lang}_n{n}_probe.jsonl"
+def run_probe(method: str, n: int, sparsity: int, blocksize: int, pin: bool,
+              budget_ns: int, w: Writer) -> tuple[str, list[int], float]:
+    detail = DETAIL_DIR / f"{method}_n{n}_sp{sparsity}_probe.jsonl"
     if detail.exists():
         detail.unlink()
     probes: list[int] = []
     for attempt in (1, 2):
-        r = run_child(cmd_for(lang, "probe", n, []), BUDGET_S * 2 + 30, detail)
+        r = run_child(cmd_for(method, "probe", n, sparsity, blocksize, pin, []),
+                      BUDGET_S * 2 + 30, detail)
         gate = None
         for ln in r.lines:
-            if ln.get("mode") != "probe":
-                continue
-            if ln.get("phase") == "timed" or (ln.get("mode") == "probe" and "phase" not in ln):
+            if ln.get("mode") == "probe":
                 gate = ln.get("kernel_total_ns")
         if r.killed == "memory":
             return "memory_limit", probes, float("nan")
         if gate is None:
-            # killed before the gate line (deadline or OOM)
             return "timeout", probes, float("nan")
         probes.append(int(gate))
-        w.raw_row(lang=lang, n=n, phase="probe", rep=len(probes) - 1, batch=1,
-                  kernel_total_ns=gate, kernel_per_mult_ns=gate,
-                  checksum="", attempt=attempt)
-        if gate <= BUDGET_NS:
+        w.raw_row(method=method, n=n, sparsity=sparsity, phase="probe",
+                  rep=len(probes) - 1, batch=1, kernel_total_ns=gate,
+                  kernel_per_mult_ns=gate, checksum="", attempt=attempt,
+                  blocksize=blocksize)
+        if gate <= budget_ns:
             return "passed", probes, float(gate)
-        # retry only if the probe actually completed (was not killed)
         if r.killed is not None:
             break
     return "timeout", probes, probes[-1] if probes else float("nan")
 
 
-def run_bench(lang: str, n: int, reps: int, w: Writer) -> tuple[str, dict]:
-    warmups = warmups_for(lang, n)
-    detail = DETAIL_DIR / f"{lang}_n{n}_bench.jsonl"
+def run_bench(method: str, n: int, sparsity: int, blocksize: int, pin: bool,
+              reps: int, w: Writer) -> tuple[str, dict]:
+    detail = DETAIL_DIR / f"{method}_n{n}_sp{sparsity}_bench.jsonl"
     if detail.exists():
         detail.unlink()
-    extra = ["--warmups", str(warmups), "--reps", str(reps),
+    extra = ["--warmups", str(WARMUPS), "--reps", str(reps),
              "--budget-ns", str(BUDGET_NS), "--min-batch-ns", str(MIN_BATCH_NS)]
-    deadline = min(BUDGET_S * (warmups + reps + 1) + 90, BUDGET_S * 12 + 180)
-    r = run_child(cmd_for(lang, "bench", n, extra), deadline, detail)
+    deadline = min(BUDGET_S * (WARMUPS + reps + 1) + 90, BUDGET_S * 12 + 180)
+    r = run_child(cmd_for(method, "bench", n, sparsity, blocksize, pin, extra),
+                  deadline, detail)
 
     status = "ok"
     reason = ""
@@ -269,11 +291,17 @@ def run_bench(lang: str, n: int, reps: int, w: Writer) -> tuple[str, dict]:
             status, reason = "timeout", ln.get("reason", "")
         elif ln.get("mode") == "bench":
             phase = ln.get("phase")
-            w.raw_row(lang=lang, n=n, phase=phase, rep=ln.get("rep", ""),
-                      batch=ln.get("batch", ""),
-                      kernel_total_ns=ln.get("kernel_total_ns", ""),
-                      kernel_per_mult_ns=ln.get("kernel_per_mult_ns", ""),
-                      checksum=ln.get("checksum", ""), attempt=1)
+            if phase == "convert":
+                w.conv_row(n=n, sparsity=sparsity, rep=ln.get("rep", ""),
+                           convert_ns=ln.get("convert_ns", ""),
+                           nnz=ln.get("nnz", ""))
+            else:
+                w.raw_row(method=method, n=n, sparsity=sparsity, phase=phase,
+                          rep=ln.get("rep", ""), batch=ln.get("batch", ""),
+                          kernel_total_ns=ln.get("kernel_total_ns", ""),
+                          kernel_per_mult_ns=ln.get("kernel_per_mult_ns", ""),
+                          checksum=ln.get("checksum", ""), attempt=1,
+                          blocksize=blocksize)
             if phase == "measure":
                 measures.append(float(ln.get("kernel_per_mult_ns", 0)))
                 batch = ln.get("batch", "")
@@ -286,7 +314,7 @@ def run_bench(lang: str, n: int, reps: int, w: Writer) -> tuple[str, dict]:
 
     cpu = r.cpu_samples or [0.0]
     meta = {
-        "warmups": warmups, "reps": reps, "batch": batch,
+        "warmups": WARMUPS, "reps": reps, "batch": batch,
         "exit_code": r.exit_code, "wall_s": round(r.wall_s, 3),
         "peak_rss_mb": round(r.peak_rss_mb, 1),
         "sys_cpu_mean_pct": round(sum(cpu) / len(cpu), 1),
@@ -296,67 +324,122 @@ def run_bench(lang: str, n: int, reps: int, w: Writer) -> tuple[str, dict]:
     return status, meta
 
 
+def run_tune(blocksize: int, pin: bool, reps: int) -> None:
+    new = not TUNE_CSV.exists() or TUNE_CSV.stat().st_size == 0
+    fh = TUNE_CSV.open("a", newline="", encoding="utf-8")
+    writer = csv.DictWriter(fh, fieldnames=TUNE_FIELDS)
+    if new:
+        writer.writeheader()
+    for n in TUNE_SIZES:
+        extra = ["--warmups", str(WARMUPS), "--reps", str(reps),
+                 "--budget-ns", str(BUDGET_NS), "--min-batch-ns", str(MIN_BATCH_NS)]
+        detail = DETAIL_DIR / f"tune_block{blocksize}_n{n}.jsonl"
+        if detail.exists():
+            detail.unlink()
+        print(f"[tune] blocksize={blocksize} n={n} ...", flush=True)
+        r = run_child(cmd_for("block", "bench", n, 0, blocksize, pin, extra),
+                      300.0, detail)
+        for ln in r.lines:
+            if ln.get("mode") == "bench" and ln.get("phase") == "measure":
+                writer.writerow({"blocksize": blocksize, "n": n,
+                                 "rep": ln.get("rep", ""),
+                                 "kernel_per_mult_ns": ln.get("kernel_per_mult_ns", "")})
+                fh.flush()
+        if r.killed:
+            print(f"   -> killed ({r.killed})", flush=True)
+    fh.close()
+
+
 def main() -> int:
     global BUDGET_NS, BUDGET_S
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--sizes", default=",".join(map(str, SIZES)))
-    ap.add_argument("--langs", default=",".join(LANGS))
+    ap.add_argument("--phase", choices=["a", "b", "all", "tune"], default="all")
     ap.add_argument("--reps", type=int, default=REPS)
-    ap.add_argument("--force", action="store_true", help="rerun configs already ok")
+    ap.add_argument("--force", action="store_true",
+                    help="rerun configs already ok")
     ap.add_argument("--budget-s", type=int, default=BUDGET_S)
+    ap.add_argument("--blocksize", type=int, default=64)
+    ap.add_argument("--no-pin", action="store_true",
+                    help="do not pin child processes to CPU0")
     args = ap.parse_args()
 
     BUDGET_S = args.budget_s
     BUDGET_NS = BUDGET_S * 1_000_000_000
+    pin = not args.no_pin
 
-    sizes = [int(x) for x in args.sizes.split(",") if x]
-    langs = [x.strip() for x in args.langs.split(",") if x]
-
-    # ensure binaries exist
-    if not (ROOT / "src" / "c" / "matmul.exe").exists() or not (
-            ROOT / "src" / "java" / "MatMul.class").exists():
-        print("binaries missing -> running scripts/build.py")
+    if not EXE.exists():
+        print("binary missing -> running scripts/build.py")
         subprocess.run([sys.executable, str(ROOT / "scripts" / "build.py")],
                        check=True, cwd=ROOT)
+
+    if args.phase == "tune":
+        t0 = time.monotonic()
+        for bs in TUNE_BLOCKSIZES:
+            run_tune(bs, pin, max(args.reps, 3))
+        print(f"tuning done in {time.monotonic() - t0:.1f}s -> {TUNE_CSV}")
+        return 0
+
+    configs: list[tuple[str, str, int, int]] = []
+    if args.phase in ("a", "all"):
+        configs += [("a", m, n, 0) for m in DENSE_METHODS for n in SIZES]
+    if args.phase in ("b", "all"):
+        configs += [("b", m, SPARSE_N, p) for m in SPARSE_METHODS
+                    for p in SPARSITIES]
+
+    for _, _, n, sp in configs:
+        need = [a_path(n, sp), INPUTS / f"B_{n}.bin"]
+        missing = [str(p) for p in need if not p.exists()]
+        if missing:
+            raise SystemExit(f"missing inputs: {missing} -> "
+                             "run scripts/generate_inputs.py first")
 
     done = set() if args.force else load_done()
     w = Writer()
     t_campaign = time.monotonic()
     try:
-        for n in sizes:
-            for lang in langs:
-                if (lang, n) in done:
-                    print(f"[skip] {lang} n={n} (already ok)")
-                    continue
-                t0 = time.monotonic()
-                print(f"[probe] {lang} n={n} ...", flush=True)
-                pstatus, probes, gate = run_probe(lang, n, w)
-                if pstatus != "passed":
-                    w.cfg_row(lang=lang, n=n, status=pstatus, reason="budget gate failed",
-                              probe1_ns=probes[0] if probes else "",
-                              probe2_ns=probes[1] if len(probes) > 1 else "",
-                              gate_ns="", warmups="", reps="", batch="",
-                              exit_code="", wall_s=round(time.monotonic() - t0, 3),
-                              peak_rss_mb="", sys_cpu_mean_pct="", sys_cpu_max_pct="")
-                    print(f"   -> {pstatus} (probes={probes})", flush=True)
-                    continue
-                print(f"   gate passed: {gate / 1e6:.2f} ms -> bench", flush=True)
-                bstatus, meta = run_bench(lang, n, args.reps, w)
-                wall = round(time.monotonic() - t0, 3)
-                w.cfg_row(lang=lang, n=n, status=bstatus, reason="",
+        for phase, method, n, sparsity in configs:
+            key = (phase, method, n, sparsity)
+            if key in done:
+                print(f"[skip] {phase} {method} n={n} sp={sparsity}% (already ok)")
+                continue
+            t0 = time.monotonic()
+            label = f"{method} n={n} sp={sparsity}%"
+            print(f"[probe] {label} ...", flush=True)
+            pstatus, probes, gate = run_probe(method, n, sparsity,
+                                              args.blocksize, pin, BUDGET_NS, w)
+            if pstatus != "passed":
+                w.cfg_row(phase=phase, method=method, n=n, sparsity=sparsity,
+                          status=pstatus, reason="budget gate failed",
                           probe1_ns=probes[0] if probes else "",
                           probe2_ns=probes[1] if len(probes) > 1 else "",
-                          gate_ns=int(gate), exit_code=meta["exit_code"],
-                          wall_s=wall, **{k: meta[k] for k in
-                                          ("warmups", "reps", "batch", "peak_rss_mb",
-                                           "sys_cpu_mean_pct", "sys_cpu_max_pct")})
-                med = meta["median_per_mult_ns"]
-                med_s = f"{med / 1e6:.3f} ms" if isinstance(med, (int, float)) and med else "n/a"
-                print(f"   -> {bstatus}, median={med_s}, wall={wall}s", flush=True)
+                          gate_ns="", warmups="", reps="", batch="",
+                          blocksize=args.blocksize, exit_code="",
+                          wall_s=round(time.monotonic() - t0, 3),
+                          peak_rss_mb="", sys_cpu_mean_pct="",
+                          sys_cpu_max_pct="")
+                print(f"   -> {pstatus} (probes={probes})", flush=True)
+                continue
+            print(f"   gate passed: {gate / 1e6:.3f} ms -> bench", flush=True)
+            bstatus, meta = run_bench(method, n, sparsity, args.blocksize,
+                                      pin, args.reps, w)
+            wall = round(time.monotonic() - t0, 3)
+            w.cfg_row(phase=phase, method=method, n=n, sparsity=sparsity,
+                      status=bstatus, reason="",
+                      probe1_ns=probes[0] if probes else "",
+                      probe2_ns=probes[1] if len(probes) > 1 else "",
+                      gate_ns=int(gate), exit_code=meta["exit_code"],
+                      wall_s=wall, blocksize=args.blocksize,
+                      **{k: meta[k] for k in
+                         ("warmups", "reps", "batch", "peak_rss_mb",
+                          "sys_cpu_mean_pct", "sys_cpu_max_pct")})
+            med = meta["median_per_mult_ns"]
+            med_s = (f"{med / 1e6:.4f} ms"
+                     if isinstance(med, (int, float)) and med else "n/a")
+            print(f"   -> {bstatus}, median={med_s}, wall={wall}s", flush=True)
     finally:
         w.close()
-    print(f"campaign section done in {time.monotonic() - t_campaign:.1f}s")
-    print(f"results: {RAW_CSV} | {CFG_CSV}")
+    print(f"campaign phase done in {time.monotonic() - t_campaign:.1f}s")
+    print(f"results: {RAW_CSV} | {CFG_CSV} | {CONV_CSV}")
     return 0
 
 
