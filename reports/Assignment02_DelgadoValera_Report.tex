@@ -250,22 +250,20 @@ $n=2000$ is 4.26 for \texttt{ijk}, 3.53 for \texttt{ikj} and 2.96 for
 \texttt{block}: the baseline is strongly super-cubic, and blocking is the only
 method close to the algorithmic $n^3$ at the top end.
 
-\begin{figure}[t]
-\centering
+\begin{center}
 \includegraphics[width=0.82\textwidth]{fig1_runtime_loglog.pdf}
-\caption{Part A: median kernel time vs.\ $n$ (log-log) with IQR error bars and a
-cubic reference anchored at the baseline ($n=500$). All configurations met the
-60\,s budget.}
+\captionof{figure}{Part A: median kernel time vs.\ $n$ (log-log) with IQR error
+bars and a cubic reference anchored at the baseline ($n=500$). All
+configurations met the 60\,s budget.}
 \label{fig:runtime}
-\end{figure}
+\end{center}
 
-\begin{figure}[t]
-\centering
+\begin{center}
 \includegraphics[width=0.78\textwidth]{fig2_speedup.pdf}
-\caption{Part A: speedup of the optimised methods over \texttt{ijk} (median
-times). Blocking only pays off past $n=1000$.}
+\captionof{figure}{Part A: speedup of the optimised methods over \texttt{ijk}
+(median times). Blocking only pays off past $n=1000$.}
 \label{fig:speedup}
-\end{figure}
+\end{center}
 
 The block size was chosen by a tuning sweep (Table~\ref{tab:tune});
 $B=64$ won at every tuned size and was used in the campaign.
@@ -286,14 +284,13 @@ $n$ & $B=16$ & $B=32$ & $B=64$ & $B=128$ \\
 \end{tabular}
 \end{table}
 
-\begin{figure}[t]
-\centering
+\begin{center}
 \includegraphics[width=0.78\textwidth]{fig3_blocksize.pdf}
-\caption{Tuning sweep of the block size. The 98\,KB working set of $B=64$
-(3 tiles of $64\times64$ doubles) matches the per-core L2 better than the
-L1d-fitting $B=32$.}
+\captionof{figure}{Tuning sweep of the block size. The 98\,KB working set of
+$B=64$ (3 tiles of $64\times64$ doubles) matches the per-core L2 better than
+the L1d-fitting $B=32$.}
 \label{fig:tune}
-\end{figure}
+\end{center}
 
 \subsection{Part B: sparse multiplication at n = 1000}
 
@@ -329,22 +326,20 @@ advantage grows to 25--90$\times$ at 90--99\,\% sparsity. The 2.4\,ms--10.7\,ms
 dense-to-CSR conversion (Figure~\ref{fig:conv}) amortises after 0.07
 multiplications at 50\,\% sparsity and after 0.01 at 90\,\%.
 
-\begin{figure}[t]
-\centering
+\begin{center}
 \includegraphics[width=0.82\textwidth]{fig4_sparse_runtime.pdf}
-\caption{Part B: median kernel time vs.\ sparsity at $n=1000$ (log y-axis).
-Dense methods are flat; CSR follows the nonzero count.}
+\captionof{figure}{Part B: median kernel time vs.\ sparsity at $n=1000$ (log
+y-axis). Dense methods are flat; CSR follows the nonzero count.}
 \label{fig:sparse}
-\end{figure}
+\end{center}
 
-\begin{figure}[t]
-\centering
+\begin{center}
 \includegraphics[width=0.95\textwidth]{fig5_conversion_memory.pdf}
-\caption{Part B: (a) median dense-to-CSR conversion time, measured separately;
-(b) mean peak resident memory of the child at $n=1000$ (dense methods vs.\
-CSR).}
+\captionof{figure}{Part B: (a) median dense-to-CSR conversion time, measured
+separately; (b) mean peak resident memory of the child at $n=1000$ (dense
+methods vs.\ CSR).}
 \label{fig:conv}
-\end{figure}
+\end{center}
 
 \subsection{Memory}
 
