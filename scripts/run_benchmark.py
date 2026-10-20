@@ -34,6 +34,7 @@ import argparse
 import csv
 import json
 import queue
+import statistics
 import subprocess
 import sys
 import threading
@@ -231,6 +232,33 @@ class Writer:
         self.cfg_fh.close()
 
 
+def best_blocksize(n: int, default: int) -> int:
+    """Median-best block size for n from the tuning sweep; else the fallback."""
+    if not TUNE_CSV.exists():
+        return default
+    per: dict[int, list[float]] = {}
+    with TUNE_CSV.open(newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            if row["n"] and int(row["n"]) == n and row["kernel_per_mult_ns"]:
+                per.setdefault(int(row["blocksize"]), []).append(
+                    float(row["kernel_per_mult_ns"]))
+    if not per:
+        return default
+    med = {bs: statistics.median(v) for bs, v in per.items()}
+    return min(med, key=med.get)
+
+
+def fallback_blocksize(default: int) -> int:
+    """Best block size at the smallest tuned n, used for untuned sizes."""
+    if not TUNE_CSV.exists():
+        return default
+    sizes = {int(row["n"]) for row in csv.DictReader(TUNE_CSV.open(
+        newline="", encoding="utf-8")) if row["n"]}
+    if not sizes:
+        return default
+    return best_blocksize(min(sizes), default)
+
+
 def load_done() -> set[tuple[str, str, int, int]]:
     done: set[tuple[str, str, int, int]] = set()
     if CFG_CSV.exists():
@@ -394,6 +422,7 @@ def main() -> int:
                              "run scripts/generate_inputs.py first")
 
     done = set() if args.force else load_done()
+    fb_bs = fallback_blocksize(args.blocksize)
     w = Writer()
     t_campaign = time.monotonic()
     try:
@@ -403,24 +432,27 @@ def main() -> int:
                 print(f"[skip] {phase} {method} n={n} sp={sparsity}% (already ok)")
                 continue
             t0 = time.monotonic()
+            bs = best_blocksize(n, fb_bs) if method == "block" else 0
             label = f"{method} n={n} sp={sparsity}%"
+            if method == "block":
+                label += f" bs={bs}"
             print(f"[probe] {label} ...", flush=True)
             pstatus, probes, gate = run_probe(method, n, sparsity,
-                                              args.blocksize, pin, BUDGET_NS, w)
+                                              bs, pin, BUDGET_NS, w)
             if pstatus != "passed":
                 w.cfg_row(phase=phase, method=method, n=n, sparsity=sparsity,
                           status=pstatus, reason="budget gate failed",
                           probe1_ns=probes[0] if probes else "",
                           probe2_ns=probes[1] if len(probes) > 1 else "",
                           gate_ns="", warmups="", reps="", batch="",
-                          blocksize=args.blocksize, exit_code="",
+                          blocksize=bs, exit_code="",
                           wall_s=round(time.monotonic() - t0, 3),
                           peak_rss_mb="", sys_cpu_mean_pct="",
                           sys_cpu_max_pct="")
                 print(f"   -> {pstatus} (probes={probes})", flush=True)
                 continue
             print(f"   gate passed: {gate / 1e6:.3f} ms -> bench", flush=True)
-            bstatus, meta = run_bench(method, n, sparsity, args.blocksize,
+            bstatus, meta = run_bench(method, n, sparsity, bs,
                                       pin, args.reps, w)
             wall = round(time.monotonic() - t0, 3)
             w.cfg_row(phase=phase, method=method, n=n, sparsity=sparsity,
@@ -428,7 +460,7 @@ def main() -> int:
                       probe1_ns=probes[0] if probes else "",
                       probe2_ns=probes[1] if len(probes) > 1 else "",
                       gate_ns=int(gate), exit_code=meta["exit_code"],
-                      wall_s=wall, blocksize=args.blocksize,
+                      wall_s=wall, blocksize=bs,
                       **{k: meta[k] for k in
                          ("warmups", "reps", "batch", "peak_rss_mb",
                           "sys_cpu_mean_pct", "sys_cpu_max_pct")})

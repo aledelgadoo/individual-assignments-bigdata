@@ -1,0 +1,13 @@
+{"cmd": ["C:\\Users\\Aleja\\Documents\\Universidad\\3er Curso\\1er Cuatrimestre\\BD\\individual-assigments\\individual-assignments-bigdata\\src\\matmul2.exe", "bench", "--method", "csr", "--a", "C:\\Users\\Aleja\\Documents\\Universidad\\3er Curso\\1er Cuatrimestre\\BD\\individual-assigments\\individual-assignments-bigdata\\data\\inputs\\A_1000_sp99.bin", "--b", "C:\\Users\\Aleja\\Documents\\Universidad\\3er Curso\\1er Cuatrimestre\\BD\\individual-assigments\\individual-assignments-bigdata\\data\\inputs\\B_1000.bin", "--n", "1000", "--sparsity", "99", "--blocksize", "0", "--pin", "--warmups", "1", "--reps", "5", "--budget-ns", "60000000000", "--min-batch-ns", "200000000"], "deadline_s": 510, "killed": null, "exit_code": 0, "wall_s": 2.187}
+{"mode": "bench", "phase": "convert", "method": "csr", "n": 1000, "sparsity": 99, "rep": 0, "convert_ns": 1835800, "nnz": 9844}
+{"mode": "bench", "phase": "convert", "method": "csr", "n": 1000, "sparsity": 99, "rep": 1, "convert_ns": 1436600, "nnz": 9844}
+{"mode": "bench", "phase": "convert", "method": "csr", "n": 1000, "sparsity": 99, "rep": 2, "convert_ns": 1348800, "nnz": 9844}
+{"mode": "bench", "phase": "convert", "method": "csr", "n": 1000, "sparsity": 99, "rep": 3, "convert_ns": 1343800, "nnz": 9844}
+{"mode": "bench", "phase": "convert", "method": "csr", "n": 1000, "sparsity": 99, "rep": 4, "convert_ns": 1785300, "nnz": 9844}
+{"mode": "bench", "phase": "warmup", "method": "csr", "n": 1000, "sparsity": 99, "rep": 0, "batch": 1, "kernel_total_ns": 4907300, "kernel_per_mult_ns": 4907300, "checksum": -140.39482217036752}
+{"mode": "bench", "phase": "measure", "method": "csr", "n": 1000, "sparsity": 99, "rep": 0, "batch": 82, "kernel_total_ns": 339000900, "kernel_per_mult_ns": 4134157.3170731706, "checksum": -140.39482217036752}
+{"mode": "bench", "phase": "measure", "method": "csr", "n": 1000, "sparsity": 99, "rep": 1, "batch": 82, "kernel_total_ns": 328234400, "kernel_per_mult_ns": 4002858.536585366, "checksum": -140.39482217036752}
+{"mode": "bench", "phase": "measure", "method": "csr", "n": 1000, "sparsity": 99, "rep": 2, "batch": 82, "kernel_total_ns": 326745200, "kernel_per_mult_ns": 3984697.56097561, "checksum": -140.39482217036752}
+{"mode": "bench", "phase": "measure", "method": "csr", "n": 1000, "sparsity": 99, "rep": 3, "batch": 82, "kernel_total_ns": 325096400, "kernel_per_mult_ns": 3964590.2439024393, "checksum": -140.39482217036752}
+{"mode": "bench", "phase": "measure", "method": "csr", "n": 1000, "sparsity": 99, "rep": 4, "batch": 82, "kernel_total_ns": 328502100, "kernel_per_mult_ns": 4006123.1707317075, "checksum": -140.39482217036752}
+{"mode": "done", "method": "csr", "n": 1000, "peak_wss_bytes": 28151808}

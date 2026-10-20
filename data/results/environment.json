@@ -1,0 +1,65 @@
+{
+  "timestamp_utc": "2026-10-20T11:17:49+00:00",
+  "platform": "Windows-10-10.0.26200-SP0",
+  "machine": "AMD64",
+  "cpu_name": "13th Gen Intel(R) Core(TM) i7-1355U",
+  "cpu_physical_cores": 10,
+  "cpu_logical_cores": 12,
+  "ram_total_bytes": 16794918912,
+  "cache": {
+    "line_bytes": 64,
+    "line_bytes_source": "Intel Raptor Lake specification (WMI returns null)",
+    "l1d_per_pcore_kb": 48,
+    "l1d_source": "Intel Raptor Lake specification (WMI returns null)",
+    "l2_total_kb": "6656",
+    "l3_total_kb": "12288",
+    "l2_source": "Win32_Processor.L2CacheSize (2x1.25 MB P-cores + 4 MB E-cluster)"
+  },
+  "python_version": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+  "gcc_version": "gcc (MinGW-W64 x86_64-ucrt-mcf-seh, built by Brecht Sanders, r1) 16.1.0",
+  "numpy_version": "2.2.6",
+  "power_scheme": "GUID de plan de energ\ufffda: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (Alto rendimiento)",
+  "git_commit": "af65246b285b1c2eace48a678e7a7d6b28937304",
+  "git_dirty": true,
+  "protocol": {
+    "budget_s": 60,
+    "mem_limit_bytes": 4294967296,
+    "sizes": [
+      10,
+      50,
+      100,
+      200,
+      500,
+      1000,
+      2000
+    ],
+    "sparsity_levels_percent": [
+      1,
+      5,
+      10,
+      25,
+      50,
+      75,
+      90,
+      95,
+      99
+    ],
+    "sparse_n": 1000,
+    "methods": [
+      "ijk",
+      "ikj",
+      "block",
+      "csr"
+    ],
+    "reps": 5,
+    "warmups": 1,
+    "min_batch_ns": 200000000,
+    "blocksize": 32,
+    "affinity": "child pinned to CPU0 (P-core) via SetThreadAffinityMask",
+    "compiler_flags": "-O2 -std=c11 -Wall -Wextra",
+    "seed": 42,
+    "probe": "one warm-up kernel (excluded) + one timed kernel; gate = timed <= budget; one retry if the probe completed but failed the gate",
+    "conversion": "dense-to-CSR conversions timed separately, never inside the multiplication timing",
+    "statistical_estimator": "median + IQR over reps (warm-ups excluded)"
+  }
+}

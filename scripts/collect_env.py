@@ -62,6 +62,7 @@ def main() -> int:
 
     git_commit = _run(["git", "rev-parse", "HEAD"])
     git_dirty = bool(_run(["git", "status", "--porcelain"]))
+    power_scheme = _run(["powercfg", "/getactivescheme"])
 
     env = {
         "timestamp_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -84,6 +85,7 @@ def main() -> int:
         "python_version": sys.version,
         "gcc_version": gcc_version[0] if gcc_version else None,
         "numpy_version": numpy_version,
+        "power_scheme": power_scheme,
         "git_commit": git_commit,
         "git_dirty": git_dirty,
         "protocol": {
