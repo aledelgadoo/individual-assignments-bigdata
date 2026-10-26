@@ -76,15 +76,16 @@ long long peak_wss_bytes(void) {
 #endif
 }
 
-int pin_pcore(void) {
+int set_process_affinity(int pcores_only) {
 #if defined(_WIN32)
-    DWORD_PTR mask = (DWORD_PTR)0x1;
-    if (SetThreadAffinityMask(GetCurrentThread(), mask) == 0) {
+    DWORD_PTR mask = pcores_only ? (DWORD_PTR)0xF : (DWORD_PTR)0xFFF;
+    if (SetProcessAffinityMask(GetCurrentProcess(), mask) == 0) {
         return 0;
     }
     return 1;
 #else
-    return 0;
+    (void)pcores_only;
+    return 1;
 #endif
 }
 

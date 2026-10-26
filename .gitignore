@@ -11,6 +11,9 @@ __pycache__/
 src/*.o
 src/*.exe
 src/matmul2
+src/matmul3_*
+src/variant.h
+build/
 
 # Generated input binaries (regenerate with scripts/generate_inputs.py)
 data/inputs/*.bin

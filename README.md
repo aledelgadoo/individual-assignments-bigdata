@@ -1,94 +1,62 @@
-# Matrix Multiplication Study — Assignment 2
+# Assignment 3 — Parallel & SIMD dense matrix multiplication
 
-Optimised dense matrix multiplication (**loop reordering**, **cache
-blocking**) and **CSR sparse multiplication**, all in C, benchmarked under a
-controlled, reproducible protocol against the validated baseline of Part A.
+OpenMP parallelisation and SIMD vectorisation of dense matrix multiplication
+on an Intel hybrid CPU (i7-1355U: 2 P-cores + 8 E-cores, 12 logical CPUs).
 
-Research question: *How do loop reordering, cache blocking and CSR sparse
-storage affect runtime and memory compared with the baseline triple-loop
-implementation?*
+The kernel is the `ikj` ordering validated in Assignment 2 (row-parallel,
+elementwise inner loop). The equivalent sequential baseline is the same
+kernel without OpenMP, compiled with the same optimisation level.
 
-Course: BIG DATA, Grado en Ciencia e Ingeniería de Datos, Universidad de Las
-Palmas de Gran Canaria. Academic year 2026-2027.
+## Build (four binaries from one shared source)
 
-Author: Alejandro Delgado Valera.
-
-Reuses from Assignment 1 (tag `assignment-1`): the validated `i-j-k` baseline
-kernel and the input generator/seed scheme, so all inputs are byte-identical
-where sizes overlap.
-
-## Repository structure
-
-```
-individual-assignments-bigdata/
-├── data/
-│   ├── inputs/          # shared input matrices + meta.json manifest
-│   └── results/         # raw and summary measurements (CSV/JSON)
-├── src/
-│   ├── common.[ch]      # timing, peak RSS, affinity, loading
-│   ├── dense.[ch]       # ijk baseline, ikj reordering, blocked tiling
-│   ├── sparse.[ch]      # CSR build + CSR x dense multiplication
-│   ├── selftest.[ch]    # correctness suite (bitwise + long double reference)
-│   └── main.c           # CLI: selftest | probe | bench
-├── scripts/             # build, input generation, benchmark driver, env
-├── notebooks/           # analysis (tables and figures from raw CSV)
-├── reports/             # final report (LaTeX) and figures
-└── README.md
-```
-
-## Prerequisites
-
-- Python 3.11.9 with `numpy` 2.2.6 (input generation only, never inside a
-  measured kernel), `psutil` 7.1.0, `pandas`, `matplotlib`, `jupyter`
-- GCC 16.1.0 (MinGW-w64 on Windows), flags fixed at `-O2 -std=c11 -Wall -Wextra`
-- A LaTeX distribution (`pdflatex`, `latexmk`) for the report
-
-## How to reproduce
-
-```bash
-# 1. Generate the shared inputs (dense pairs + sparse variants, fixed seed)
-python scripts/generate_inputs.py
-python scripts/generate_inputs.py --check
-
-# 2. Build and validate before any benchmarking
+```powershell
 python scripts/build.py
-python src/matmul2.exe selftest
-
-# 3. (Optional) pick the cache-blocking size empirically
-python scripts/run_benchmark.py --phase tune
-
-# 4. Run the benchmark campaign (phases A and B)
-python scripts/run_benchmark.py --phase all
-
-# 5. Environment snapshot
-python scripts/collect_env.py
-
-# 6. Analyse the raw measurements
-jupyter nbconvert --to notebook --execute notebooks/02_analysis.ipynb
-
-# 7. Build the report
-cd reports && latexmk -pdf Assignment02_DelgadoValera_Report.tex
 ```
 
-## Measurement contract
+| Binary               | Flags                                                | Purpose                          |
+|----------------------|------------------------------------------------------|----------------------------------|
+| `matmul3_seq.exe`    | `-O2 -march=native`                                 | Sequential baseline              |
+| `matmul3_scalar.exe` | `-O2 -march=native -fopenmp -fno-tree-vectorize`    | Parallel, SIMD disabled (control)|
+| `matmul3_auto.exe`   | `-O2 -march=native -fopenmp`                        | Parallel, autovectorisation      |
+| `matmul3_simd.exe`   | `-O2 -march=native -fopenmp -DUSE_OMP_SIMD`         | Parallel, `#pragma omp simd`     |
 
-- Kernel-only timing (`QueryPerformanceCounter`), input loading, `C`
-  initialisation and checksums outside the timed region.
-- Budget: 60 s per multiplication, 4 GiB peak RSS; probe gate + one retry,
-  timeouts reported without an invented runtime.
-- 1 warm-up (excluded) + 5 measured repetitions, batched so each timing spans
-  at least 0.2 s; median and IQR.
-- Every child pinned to CPU0 (a P-core); system CPU% recorded per config.
-- CSR: dense-to-CSR conversion timed separately (`conversions.csv`), never
-  inside the multiplication timing.
+Vectorisation evidence: `data/results/vectorisation.txt` (opt-info + objdump).
 
-## Output files (`data/results/`)
+## Inputs
 
-| File | Contents |
-|---|---|
-| `raw_timings.csv` | one row per timed kernel event |
-| `conversions.csv` | one row per timed dense-to-CSR conversion |
-| `configs.csv` | one row per configuration (status, probes, RSS, CPU) |
-| `blocksize_tuning.csv` | block-size sweep (16/32/64/128) |
-| `environment.json` | machine, toolchain, cache, protocol |
-| `raw_detail/*.json` | raw stdout of every child process |
+```powershell
+python scripts/generate_inputs.py          # dense A_n/B_n, byte-identical to A1/A2
+python scripts/generate_inputs.py --check
+```
+
+## Correctness
+
+```powershell
+src\matmul3_simd.exe selftest              # known answers, long-double reference,
+                                           # bitwise thread invariance (p=2..12)
+```
+
+## Campaign
+
+```powershell
+python scripts/run_benchmark3.py --phase all     # seq | scale | simd | pcore
+python scripts/collect_env.py
+```
+
+- `seq`: sequential baseline, all n.
+- `scale`: S(p), E(p) for p in {1,2,4,8,12,16} (16 > 12 contextos → oversubscription).
+- `simd`: scalar vs simd at p in {1,8,12}, n in {200,500,1000,2000}.
+- `pcore`: `matmul3_auto` confined to CPU0-3 (P-core threads only).
+
+Protocol per config: probe (gate = min(60 s, 2×max probe)) → 1 warmup →
+batch calibration (≥0.2 s per batch) → 5 measured repetitions. JSON lines
+per child run land in `data/results/raw_detail/`; per-config status in
+`configs.csv`; measurements in `raw_timings.csv`.
+
+Set the power plan to **High performance** for the campaign
+(`powercfg /setactive SCHEME_MIN`), restore Balanced afterwards.
+
+## Analysis
+
+`notebooks/03_analysis.ipynb` → figures in `reports/figures/`,
+tables + narrative in `reports/Assignment03_DelgadoValera_Report.tex`.

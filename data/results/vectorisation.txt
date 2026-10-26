@@ -1,0 +1,79 @@
+Vectorisation evidence (Assignment 3)
+generated_utc: 2026-10-26T20:07:40+00:00
+
+=== seq (matmul3_seq.exe) ===
+-fopt-info-vec-optimized:
+C:/Users/Aleja/Documents/Universidad/3er Curso/1er Cuatrimestre/BD/individual-assigments/individual-assignments-bigdata/src/kernels.c:12:31: optimized: loop vectorized using 32 byte vectors and unroll factor 4
+C:/Users/Aleja/Documents/Universidad/3er Curso/1er Cuatrimestre/BD/individual-assigments/individual-assignments-bigdata/src/selftest.c:64:12: optimized: basic block part vectorized using 32 byte vectors
+C:/Users/Aleja/Documents/Universidad/3er Curso/1er Cuatrimestre/BD/individual-assigments/individual-assignments-bigdata/src/selftest.c:65:12: optimized: basic block part vectorized using 32 byte vectors
+C:/Users/Aleja/Documents/Universidad/3er Curso/1er Cuatrimestre/BD/individual-assigments/individual-assignments-bigdata/src/selftest.c:67:12: optimized: basic block part vectorized using 32 byte vectors
+objdump packed ymm/zmm instructions (whole exe): 9
+  140001b40:	c5 f5 59 04 01       	vmulpd (%rcx,%rax,1),%ymm1,%ymm0
+  140001b45:	c5 fd 58 04 02       	vaddpd (%rdx,%rax,1),%ymm0,%ymm0
+  140001b4a:	c5 fd 11 04 02       	vmovupd %ymm0,(%rdx,%rax,1)
+  140001c4e:	c5 fd 28 05 ca 45 00 	vmovapd 0x45ca(%rip),%ymm0        # 140006220 <sizes.0+0x40>
+  140001c78:	c5 fd 11 44 24 50    	vmovupd %ymm0,0x50(%rsp)
+  140001c7e:	c5 fd 28 05 ba 45 00 	vmovapd 0x45ba(%rip),%ymm0        # 140006240 <sizes.0+0x60>
+  140001c93:	c5 fd 11 44 24 70    	vmovupd %ymm0,0x70(%rsp)
+  140001c99:	c5 fd 28 05 bf 45 00 	vmovapd 0x45bf(%rip),%ymm0        # 140006260 <sizes.0+0x80>
+  140001ca1:	c5 fd 11 84 24 b0 00 	vmovupd %ymm0,0xb0(%rsp)
+
+=== scalar (matmul3_scalar.exe) ===
+-fopt-info-vec-optimized: (not requested)
+objdump packed ymm/zmm instructions (whole exe): 0
+
+=== auto (matmul3_auto.exe) ===
+-fopt-info-vec-optimized:
+C:/Users/Aleja/Documents/Universidad/3er Curso/1er Cuatrimestre/BD/individual-assigments/individual-assignments-bigdata/src/kernels.c:12:31: optimized: loop vectorized using 32 byte vectors and unroll factor 4
+C:/Users/Aleja/Documents/Universidad/3er Curso/1er Cuatrimestre/BD/individual-assigments/individual-assignments-bigdata/src/selftest.c:64:12: optimized: basic block part vectorized using 32 byte vectors
+C:/Users/Aleja/Documents/Universidad/3er Curso/1er Cuatrimestre/BD/individual-assigments/individual-assignments-bigdata/src/selftest.c:65:12: optimized: basic block part vectorized using 32 byte vectors
+C:/Users/Aleja/Documents/Universidad/3er Curso/1er Cuatrimestre/BD/individual-assigments/individual-assignments-bigdata/src/selftest.c:67:12: optimized: basic block part vectorized using 32 byte vectors
+C:/Users/Aleja/Documents/Universidad/3er Curso/1er Cuatrimestre/BD/individual-assigments/individual-assignments-bigdata/src/selftest.c:155:40: optimized: basic block part vectorized using 32 byte vectors
+C:/Users/Aleja/Documents/Universidad/3er Curso/1er Cuatrimestre/BD/individual-assigments/individual-assignments-bigdata/src/selftest.c:156:37: optimized: basic block part vectorized using 32 byte vectors
+C:/Users/Aleja/Documents/Universidad/3er Curso/1er Cuatrimestre/BD/individual-assigments/individual-assignments-bigdata/src/selftest.c:156:62: optimized: basic block part vectorized using 32 byte vectors
+objdump packed ymm/zmm instructions (whole exe): 14
+  140001c80:	c5 f5 59 04 01       	vmulpd (%rcx,%rax,1),%ymm1,%ymm0
+  140001c85:	c5 fd 58 04 02       	vaddpd (%rdx,%rax,1),%ymm0,%ymm0
+  140001c8a:	c5 fd 11 04 02       	vmovupd %ymm0,(%rdx,%rax,1)
+  140001d8e:	c5 fd 28 1d ea 44 00 	vmovapd 0x44ea(%rip),%ymm3        # 140006280 <sizes.1+0x40>
+  140001d96:	c5 fd 28 25 02 45 00 	vmovapd 0x4502(%rip),%ymm4        # 1400062a0 <sizes.1+0x60>
+  140001da6:	c5 fd 28 05 12 45 00 	vmovapd 0x4512(%rip),%ymm0        # 1400062c0 <sizes.1+0x80>
+  140001dbe:	c5 fd 11 5c 24 70    	vmovupd %ymm3,0x70(%rsp)
+  140001dd6:	c5 fd 11 a4 24 90 00 	vmovupd %ymm4,0x90(%rsp)
+  140001de7:	c5 fd 11 84 24 d0 00 	vmovupd %ymm0,0xd0(%rsp)
+  1400021c8:	c5 fd 28 2d d0 40 00 	vmovapd 0x40d0(%rip),%ymm5        # 1400062a0 <sizes.1+0x60>
+  1400021d8:	c5 fd 28 1d a0 40 00 	vmovapd 0x40a0(%rip),%ymm3        # 140006280 <sizes.1+0x40>
+  1400021ea:	c5 fd 11 84 24 b0 00 	vmovupd %ymm0,0xb0(%rsp)
+  1400021f3:	c5 fd 11 ac 24 90 00 	vmovupd %ymm5,0x90(%rsp)
+  140002204:	c5 fd 11 5c 24 70    	vmovupd %ymm3,0x70(%rsp)
+
+=== simd (matmul3_simd.exe) ===
+-fopt-info-vec-optimized:
+C:/Users/Aleja/Documents/Universidad/3er Curso/1er Cuatrimestre/BD/individual-assigments/individual-assignments-bigdata/src/kernels.c:32:18: optimized: loop vectorized using 32 byte vectors and unroll factor 4
+C:/Users/Aleja/Documents/Universidad/3er Curso/1er Cuatrimestre/BD/individual-assigments/individual-assignments-bigdata/src/kernels.c:32:18: optimized: epilogue loop vectorized using 16 byte vectors and unroll factor 2
+C:/Users/Aleja/Documents/Universidad/3er Curso/1er Cuatrimestre/BD/individual-assigments/individual-assignments-bigdata/src/kernels.c:12:31: optimized: loop vectorized using 32 byte vectors and unroll factor 4
+C:/Users/Aleja/Documents/Universidad/3er Curso/1er Cuatrimestre/BD/individual-assigments/individual-assignments-bigdata/src/selftest.c:64:12: optimized: basic block part vectorized using 32 byte vectors
+C:/Users/Aleja/Documents/Universidad/3er Curso/1er Cuatrimestre/BD/individual-assigments/individual-assignments-bigdata/src/selftest.c:65:12: optimized: basic block part vectorized using 32 byte vectors
+C:/Users/Aleja/Documents/Universidad/3er Curso/1er Cuatrimestre/BD/individual-assigments/individual-assignments-bigdata/src/selftest.c:67:12: optimized: basic block part vectorized using 32 byte vectors
+C:/Users/Aleja/Documents/Universidad/3er Curso/1er Cuatrimestre/BD/individual-assigments/individual-assignments-bigdata/src/selftest.c:155:40: optimized: basic block part vectorized using 32 byte vectors
+C:/Users/Aleja/Documents/Universidad/3er Curso/1er Cuatrimestre/BD/individual-assigments/individual-assignments-bigdata/src/selftest.c:156:37: optimized: basic block part vectorized using 32 byte vectors
+C:/Users/Aleja/Documents/Universidad/3er Curso/1er Cuatrimestre/BD/individual-assigments/individual-assignments-bigdata/src/selftest.c:156:62: optimized: basic block part vectorized using 32 byte vectors
+objdump packed ymm/zmm instructions (whole exe): 17
+  140001ba0:	c4 81 75 59 04 03    	vmulpd (%r11,%r8,1),%ymm1,%ymm0
+  140001ba6:	c4 a1 7d 58 04 00    	vaddpd (%rax,%r8,1),%ymm0,%ymm0
+  140001bac:	c4 a1 7d 11 04 00    	vmovupd %ymm0,(%rax,%r8,1)
+  140001d80:	c5 f5 59 04 01       	vmulpd (%rcx,%rax,1),%ymm1,%ymm0
+  140001d85:	c5 fd 58 04 02       	vaddpd (%rdx,%rax,1),%ymm0,%ymm0
+  140001d8a:	c5 fd 11 04 02       	vmovupd %ymm0,(%rdx,%rax,1)
+  140001e8e:	c5 fd 28 1d ea 43 00 	vmovapd 0x43ea(%rip),%ymm3        # 140006280 <sizes.1+0x40>
+  140001e96:	c5 fd 28 25 02 44 00 	vmovapd 0x4402(%rip),%ymm4        # 1400062a0 <sizes.1+0x60>
+  140001ea6:	c5 fd 28 05 12 44 00 	vmovapd 0x4412(%rip),%ymm0        # 1400062c0 <sizes.1+0x80>
+  140001ebe:	c5 fd 11 5c 24 70    	vmovupd %ymm3,0x70(%rsp)
+  140001ed6:	c5 fd 11 a4 24 90 00 	vmovupd %ymm4,0x90(%rsp)
+  140001ee7:	c5 fd 11 84 24 d0 00 	vmovupd %ymm0,0xd0(%rsp)
+  1400022c8:	c5 fd 28 2d d0 3f 00 	vmovapd 0x3fd0(%rip),%ymm5        # 1400062a0 <sizes.1+0x60>
+  1400022d8:	c5 fd 28 1d a0 3f 00 	vmovapd 0x3fa0(%rip),%ymm3        # 140006280 <sizes.1+0x40>
+  1400022ea:	c5 fd 11 84 24 b0 00 	vmovupd %ymm0,0xb0(%rsp)
+  1400022f3:	c5 fd 11 ac 24 90 00 	vmovupd %ymm5,0x90(%rsp)
+  140002304:	c5 fd 11 5c 24 70    	vmovupd %ymm3,0x70(%rsp)
+

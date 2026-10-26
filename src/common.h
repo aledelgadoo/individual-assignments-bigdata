@@ -5,7 +5,7 @@
 
 double now_ns(void);
 long long peak_wss_bytes(void);
-int pin_pcore(void);
+int set_process_affinity(int pcores_only);
 
 void die(const char *msg);
 void emit(const char *fmt, ...) __attribute__((format(printf, 1, 2)));

@@ -1,31 +1,56 @@
 {
-  "timestamp_utc": "2026-10-20T11:17:49+00:00",
+  "description": "Execution environment for Assignment 3 (OpenMP parallel + SIMD dense ikj)",
+  "collected_utc": "2026-10-26T20:10:14+00:00",
   "platform": "Windows-10-10.0.26200-SP0",
-  "machine": "AMD64",
-  "cpu_name": "13th Gen Intel(R) Core(TM) i7-1355U",
-  "cpu_physical_cores": 10,
-  "cpu_logical_cores": 12,
-  "ram_total_bytes": 16794918912,
-  "cache": {
-    "line_bytes": 64,
-    "line_bytes_source": "Intel Raptor Lake specification (WMI returns null)",
-    "l1d_per_pcore_kb": 48,
-    "l1d_source": "Intel Raptor Lake specification (WMI returns null)",
-    "l2_total_kb": "6656",
-    "l3_total_kb": "12288",
-    "l2_source": "Win32_Processor.L2CacheSize (2x1.25 MB P-cores + 4 MB E-cluster)"
+  "python": "3.11.9",
+  "numpy": "2.2.6",
+  "psutil": "7.1.0",
+  "cpu": {
+    "psutil_logical": 12,
+    "psutil_physical": 10,
+    "min_mhz": 0.0,
+    "max_mhz": 1700.0,
+    "current_mhz": 1457.0,
+    "wmic": "(failed: [WinError 2] El sistema no puede encontrar el archivo especificado)",
+    "hybrid_note": "Intel i7-1355U: 2 P-cores (2 threads each, CPU0-3) + 8 E-cores (1 thread each, CPU4-11); 12 logical CPUs"
   },
-  "python_version": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
-  "gcc_version": "gcc (MinGW-W64 x86_64-ucrt-mcf-seh, built by Brecht Sanders, r1) 16.1.0",
-  "numpy_version": "2.2.6",
-  "power_scheme": "GUID de plan de energ\ufffda: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (Alto rendimiento)",
-  "git_commit": "af65246b285b1c2eace48a678e7a7d6b28937304",
-  "git_dirty": true,
+  "ram_total_gb": 16.79,
+  "compiler": "gcc (MinGW-W64 x86_64-ucrt-mcf-seh, built by Brecht Sanders, r1) 16.1.0",
+  "compiler_flags": {
+    "seq": "-std=c11 -O2 -march=native -Wall -Wextra (no OpenMP)",
+    "scalar": "-std=c11 -O2 -march=native -fopenmp -fno-tree-vectorize -DUSE_OMP",
+    "auto": "-std=c11 -O2 -march=native -fopenmp -DUSE_OMP",
+    "simd": "-std=c11 -O2 -march=native -fopenmp -DUSE_OMP -DUSE_OMP_SIMD",
+    "link": "-lpsapi -lm"
+  },
+  "isa_native": {
+    "march_native": "?",
+    "mtune_native": "?",
+    "flags": {
+      "mavx": "enabled",
+      "mavx2": "enabled",
+      "mfma": "enabled",
+      "msse4.2": "enabled",
+      "mavx512f": "disabled",
+      "mavx512bw": "disabled",
+      "mavx512vl": "disabled",
+      "mavx512dq": "disabled"
+    }
+  },
+  "openmp": {
+    "runtime": "GCC libgomp (MinGW-w64 ucrt64, winpthreads)",
+    "api": "omp_set_dynamic(0) + omp_set_num_threads(p) per run",
+    "scheduling": "schedule(static) over row index i (rows of C)",
+    "wait_policy": "OMP_WAIT_POLICY=PASSIVE set by orchestrator",
+    "affinity_caveat": "libgomp on Windows has no reliable OMP_PROC_BIND; OS scheduler places threads"
+  },
+  "affinity_masks": {
+    "all": "SetProcessAffinityMask 0xFFF (CPU0-11, all logical CPUs)",
+    "pcore": "SetProcessAffinityMask 0xF (CPU0-3, P-core threads only)"
+  },
+  "power_plan": "GUID de plan de energ\u00a1a: 381b4222-f694-41f0-9685-ff5bb260df2e  (Equilibrado)",
   "protocol": {
-    "budget_s": 60,
-    "mem_limit_bytes": 4294967296,
     "sizes": [
-      10,
       50,
       100,
       200,
@@ -33,33 +58,49 @@
       1000,
       2000
     ],
-    "sparsity_levels_percent": [
+    "scale_threads": [
       1,
-      5,
-      10,
-      25,
-      50,
-      75,
-      90,
-      95,
-      99
+      2,
+      4,
+      8,
+      12,
+      16
     ],
-    "sparse_n": 1000,
-    "methods": [
-      "ijk",
-      "ikj",
-      "block",
-      "csr"
+    "simd_sizes": [
+      200,
+      500,
+      1000,
+      2000
     ],
-    "reps": 5,
+    "simd_threads": [
+      1,
+      8,
+      12
+    ],
+    "pcore_sizes": [
+      500,
+      1000,
+      2000
+    ],
+    "pcore_threads": [
+      1,
+      2,
+      3,
+      4
+    ],
     "warmups": 1,
+    "reps": 5,
+    "probe_budget_s": 60,
     "min_batch_ns": 200000000,
-    "blocksize": 32,
-    "affinity": "child pinned to CPU0 (P-core) via SetThreadAffinityMask",
-    "compiler_flags": "-O2 -std=c11 -Wall -Wextra",
-    "seed": 42,
-    "probe": "one warm-up kernel (excluded) + one timed kernel; gate = timed <= budget; one retry if the probe completed but failed the gate",
-    "conversion": "dense-to-CSR conversions timed separately, never inside the multiplication timing",
-    "statistical_estimator": "median + IQR over reps (warm-ups excluded)"
-  }
+    "gate": "bench budget = min(60 s, 2 x max probe); skip if probe > 60 s",
+    "timing_scope": "kernel only (matmul incl. memset of C); load + checksum outside timed region",
+    "inputs": "data/inputs/A_n.bin, B_n.bin (identical to Assignments 1-2)"
+  },
+  "git_commit": "b0df7bb",
+  "commands": [
+    "python scripts/build.py",
+    "python scripts/generate_inputs.py",
+    "python scripts/run_benchmark3.py --phase all",
+    "python scripts/collect_env.py"
+  ]
 }
