@@ -3,11 +3,24 @@
 
 Experiments (each config = variant x threads x n x affinity):
     seq    sequential baseline: matmul3_seq, threads=1, all cores, n in SIZES
-    scale  S(p)/E(p) curve: matmul3_auto, p in {1,2,4,8,12,16}, all cores
+    scale  S(p)/E(p) curve: matmul3_simd (parallel kernel with #pragma omp
+           simd; the presented implementation), p in {1,2,4,8,12,16}, all
+           cores. Rows from the earlier auto-variant sweep stay in the CSVs
+           and feed the SIMD comparison (compiler default reference).
     simd   controlled SIMD comparison: matmul3_scalar vs matmul3_simd,
-           p in {1,8,12}, n in SIMD_SIZES, all cores
-    pcore  P-cores-only run: matmul3_auto confined to CPU0-3 (mask 0xF),
+           p in {1,8,12}, n in SIMD_SIZES, all cores (auto rows come from
+           the scale sweep).
+    pcore  P-cores-only run: matmul3_simd confined to CPU0-3 (mask 0xF),
            p in {1,2,3,4}, n in PCORE_SIZES
+
+Stable-session phases (single continuous run after a heat-soak; thermal
+bracketing eliminates cross-phase clock drift):
+    scale2 for every n: seqpre, p in SCALE_THREADS (simd), seqpost.
+           T_seq(n) is taken as the median of the seqpre/seqpost medians,
+           measured seconds apart from the p-sweep of the same n.
+    simd2  scalar, auto and simd rows back-to-back in one session
+           (p in SIMD_THREADS, n in SIMD_SIZES).
+    pcore2 matmul3_simd on CPU0-3, immediately after scale2.
 
 Protocol per config (identical to Assignment 2):
     1. `probe`: 1 unchecked warmup + 2 timed probes.
@@ -21,7 +34,8 @@ Outputs:
     data/results/configs.csv       per config (status, probes, timings)
 
 Resume: already-done configs (status != running) are skipped; --force redoes them.
-Set OMP_WAIT_POLICY=passive in the environment to bound spin-waiting.
+OMP_WAIT_POLICY is left unset: libgomp's default (active spinning during the
+region) applies to every run and is recorded in environment.json.
 
 Usage:
     python scripts/run_benchmark3.py --phase seq|scale|simd|pcore|all
@@ -72,7 +86,7 @@ def build_configs(phase: str) -> list[tuple]:
     if phase in ("scale", "all"):
         for n in SIZES:
             for t in SCALE_THREADS:
-                cfgs.append(("scale", "auto", n, t, "all"))
+                cfgs.append(("scale", "simd", n, t, "all"))
     if phase in ("simd", "all"):
         for n in SIMD_SIZES:
             for v in ("scalar", "simd"):
@@ -81,7 +95,22 @@ def build_configs(phase: str) -> list[tuple]:
     if phase in ("pcore", "all"):
         for n in PCORE_SIZES:
             for t in PCORE_THREADS:
-                cfgs.append(("pcore", "auto", n, t, "pcore"))
+                cfgs.append(("pcore", "simd", n, t, "pcore"))
+    if phase in ("scale2", "all2"):
+        for n in SIZES:
+            cfgs.append(("seqpre", "seq", n, 1, "all"))
+            for t in SCALE_THREADS:
+                cfgs.append(("scale2", "simd", n, t, "all"))
+            cfgs.append(("seqpost", "seq", n, 1, "all"))
+    if phase in ("simd2", "all2"):
+        for n in SIMD_SIZES:
+            for v in ("scalar", "auto", "simd"):
+                for t in SIMD_THREADS:
+                    cfgs.append(("simd2", v, n, t, "all"))
+    if phase in ("pcore2", "all2"):
+        for n in PCORE_SIZES:
+            for t in PCORE_THREADS:
+                cfgs.append(("pcore2", "simd", n, t, "pcore"))
     return cfgs
 
 
@@ -195,8 +224,10 @@ def mode_values(res: ChildResult, mode: str, key: str) -> list[float]:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--phase", choices=["seq", "scale", "simd", "pcore", "all"],
-                    default="all")
+    ap.add_argument("--phase",
+                    choices=["seq", "scale", "simd", "pcore",
+                             "scale2", "simd2", "pcore2", "all", "all2"],
+                    default="all2")
     ap.add_argument("--reps", type=int, default=5)
     ap.add_argument("--budget-s", type=float, default=60.0)
     ap.add_argument("--min-batch-ns", type=int, default=200_000_000)
@@ -235,9 +266,6 @@ def main() -> int:
         raw_f.flush()
         cfg_f.flush()
 
-    env = os.environ.copy()
-    env.setdefault("OMP_WAIT_POLICY", "PASSIVE")
-
     for idx, (exp, variant, n, threads, affinity) in enumerate(todo, 1):
         exe = exe_for(variant)
         if not exe.exists():
@@ -263,6 +291,7 @@ def main() -> int:
             deadline_s=budget_ns / 1e9 * 3 + 60.0,
         )
         probe_vals = mode_values(probe, "probe", "kernel_ns")
+        warmup_vals = mode_values(probe, "warmup", "kernel_ns")
         p1 = probe_vals[0] if len(probe_vals) > 0 else float("nan")
         p2 = probe_vals[1] if len(probe_vals) > 1 else float("nan")
 
@@ -276,7 +305,13 @@ def main() -> int:
         elif max(probe_vals) > budget_ns:
             status, reason = "skipped", "probe_over_budget"
         else:
-            gate = int(min(budget_ns, 2 * max(probe_vals)))
+            # bench runs in a fresh process, so its first warmup pays the
+            # thread-team creation that the probe warmup (also fresh) paid;
+            # the gate must cover both the timed probes and that spawn cost.
+            floor = 2 * max(probe_vals)
+            if warmup_vals:
+                floor = max(floor, 2 * max(warmup_vals))
+            gate = int(min(budget_ns, floor))
 
         batch = 0
         exit_code = probe.exit_code if status != "ok" else -1
@@ -289,7 +324,7 @@ def main() -> int:
             bench = run_child(
                 [str(exe), "bench", *base,
                  "--warmups", "1", "--reps", str(args.reps),
-                 "--budget-ns", str(gate),
+                 "--budget-ns", str(budget_ns),
                  "--min-batch-ns", str(args.min_batch_ns)],
                 DETAIL / f"{tag}_bench.jsonl",
                 deadline_s=gate / 1e9 * (args.reps + 3) + 90.0,
@@ -304,6 +339,8 @@ def main() -> int:
                 status, reason = "skipped", "bench_mem_kill"
             elif bench.timed_out:
                 status, reason = "skipped", "bench_timeout"
+            elif any(l.get("mode") == "timeout" for l in bench.lines):
+                status, reason = "skipped", "bench_warmup_over_budget"
             elif not measures:
                 status, reason = "skipped", "bench_no_measures"
             else:

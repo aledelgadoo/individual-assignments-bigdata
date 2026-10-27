@@ -97,7 +97,8 @@ def main() -> int:
             "runtime": "GCC libgomp (MinGW-w64 ucrt64, winpthreads)",
             "api": "omp_set_dynamic(0) + omp_set_num_threads(p) per run",
             "scheduling": "schedule(static) over row index i (rows of C)",
-            "wait_policy": "OMP_WAIT_POLICY=PASSIVE set by orchestrator",
+            "wait_policy": "libgomp default (active spin during parallel "
+                           "regions); OMP_WAIT_POLICY not set",
             "affinity_caveat": "libgomp on Windows has no reliable "
                                "OMP_PROC_BIND; OS scheduler places threads",
         },
@@ -108,11 +109,17 @@ def main() -> int:
         "power_plan": power_plan(),
         "protocol": {
             "sizes": [50, 100, 200, 500, 1000, 2000],
+            "scale_variant": "matmul3_simd (parallel + #pragma omp simd)",
+            "scale_reference_rows": "an earlier full-grid sweep with "
+                                    "matmul3_auto (compiler default, inner "
+                                    "loop NOT vectorised) is kept for the "
+                                    "SIMD comparison",
             "scale_threads": [1, 2, 4, 8, 12, 16],
             "simd_sizes": [200, 500, 1000, 2000],
             "simd_threads": [1, 8, 12],
             "pcore_sizes": [500, 1000, 2000],
             "pcore_threads": [1, 2, 3, 4],
+            "pcore_variant": "matmul3_simd (CPU0-3 mask)",
             "warmups": 1,
             "reps": 5,
             "probe_budget_s": 60,

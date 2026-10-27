@@ -1,6 +1,6 @@
 {
   "description": "Execution environment for Assignment 3 (OpenMP parallel + SIMD dense ikj)",
-  "collected_utc": "2026-10-26T20:10:14+00:00",
+  "collected_utc": "2026-10-27T16:24:38+00:00",
   "platform": "Windows-10-10.0.26200-SP0",
   "python": "3.11.9",
   "numpy": "2.2.6",
@@ -10,7 +10,7 @@
     "psutil_physical": 10,
     "min_mhz": 0.0,
     "max_mhz": 1700.0,
-    "current_mhz": 1457.0,
+    "current_mhz": 1700.0,
     "wmic": "(failed: [WinError 2] El sistema no puede encontrar el archivo especificado)",
     "hybrid_note": "Intel i7-1355U: 2 P-cores (2 threads each, CPU0-3) + 8 E-cores (1 thread each, CPU4-11); 12 logical CPUs"
   },
@@ -41,14 +41,14 @@
     "runtime": "GCC libgomp (MinGW-w64 ucrt64, winpthreads)",
     "api": "omp_set_dynamic(0) + omp_set_num_threads(p) per run",
     "scheduling": "schedule(static) over row index i (rows of C)",
-    "wait_policy": "OMP_WAIT_POLICY=PASSIVE set by orchestrator",
+    "wait_policy": "libgomp default (active spin during parallel regions); OMP_WAIT_POLICY not set",
     "affinity_caveat": "libgomp on Windows has no reliable OMP_PROC_BIND; OS scheduler places threads"
   },
   "affinity_masks": {
     "all": "SetProcessAffinityMask 0xFFF (CPU0-11, all logical CPUs)",
     "pcore": "SetProcessAffinityMask 0xF (CPU0-3, P-core threads only)"
   },
-  "power_plan": "GUID de plan de energ\u00a1a: 381b4222-f694-41f0-9685-ff5bb260df2e  (Equilibrado)",
+  "power_plan": "GUID de plan de energ\u00a1a: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (Alto rendimiento)",
   "protocol": {
     "sizes": [
       50,
@@ -58,6 +58,8 @@
       1000,
       2000
     ],
+    "scale_variant": "matmul3_simd (parallel + #pragma omp simd)",
+    "scale_reference_rows": "an earlier full-grid sweep with matmul3_auto (compiler default, inner loop NOT vectorised) is kept for the SIMD comparison",
     "scale_threads": [
       1,
       2,
@@ -88,6 +90,7 @@
       3,
       4
     ],
+    "pcore_variant": "matmul3_simd (CPU0-3 mask)",
     "warmups": 1,
     "reps": 5,
     "probe_budget_s": 60,
@@ -96,7 +99,7 @@
     "timing_scope": "kernel only (matmul incl. memset of C); load + checksum outside timed region",
     "inputs": "data/inputs/A_n.bin, B_n.bin (identical to Assignments 1-2)"
   },
-  "git_commit": "b0df7bb",
+  "git_commit": "e5222c1",
   "commands": [
     "python scripts/build.py",
     "python scripts/generate_inputs.py",

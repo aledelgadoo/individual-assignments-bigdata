@@ -44,9 +44,11 @@ python scripts/collect_env.py
 ```
 
 - `seq`: sequential baseline, all n.
-- `scale`: S(p), E(p) for p in {1,2,4,8,12,16} (16 > 12 contextos → oversubscription).
+- `scale`: S(p), E(p) for p in {1,2,4,8,12,16} with `matmul3_simd`
+  (16 > 12 logical CPUs → oversubscription test). Earlier `matmul3_auto`
+  rows of the same grid are kept as the "compiler default" reference.
 - `simd`: scalar vs simd at p in {1,8,12}, n in {200,500,1000,2000}.
-- `pcore`: `matmul3_auto` confined to CPU0-3 (P-core threads only).
+- `pcore`: `matmul3_simd` confined to CPU0-3 (P-core threads only).
 
 Protocol per config: probe (gate = min(60 s, 2×max probe)) → 1 warmup →
 batch calibration (≥0.2 s per batch) → 5 measured repetitions. JSON lines
