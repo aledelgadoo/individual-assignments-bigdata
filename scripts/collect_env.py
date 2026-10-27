@@ -109,11 +109,17 @@ def main() -> int:
         "power_plan": power_plan(),
         "protocol": {
             "sizes": [50, 100, 200, 500, 1000, 2000],
+            "reported_session": "stable session: ~2.5 min heat-soak, then "
+                                "scale2 (seqpre -> p-sweep -> seqpost "
+                                "bracketing per n), pcore2 and simd2 "
+                                "back-to-back",
+            "tseq_definition": "median of the 10 bracketed sequential "
+                               "measurements per n",
             "scale_variant": "matmul3_simd (parallel + #pragma omp simd)",
-            "scale_reference_rows": "an earlier full-grid sweep with "
-                                    "matmul3_auto (compiler default, inner "
-                                    "loop NOT vectorised) is kept for the "
-                                    "SIMD comparison",
+            "scale_reference_rows": "pilot sweeps (seq/scale/simd/pcore, "
+                                    "auto and simd variants) kept in the "
+                                    "CSVs for transparency; drifted by "
+                                    "cross-phase thermal effects",
             "scale_threads": [1, 2, 4, 8, 12, 16],
             "simd_sizes": [200, 500, 1000, 2000],
             "simd_threads": [1, 8, 12],

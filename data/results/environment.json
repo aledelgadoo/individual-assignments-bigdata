@@ -1,6 +1,6 @@
 {
   "description": "Execution environment for Assignment 3 (OpenMP parallel + SIMD dense ikj)",
-  "collected_utc": "2026-10-27T16:24:38+00:00",
+  "collected_utc": "2026-10-27T16:50:39+00:00",
   "platform": "Windows-10-10.0.26200-SP0",
   "python": "3.11.9",
   "numpy": "2.2.6",
@@ -58,8 +58,10 @@
       1000,
       2000
     ],
+    "reported_session": "stable session: ~2.5 min heat-soak, then scale2 (seqpre -> p-sweep -> seqpost bracketing per n), pcore2 and simd2 back-to-back",
+    "tseq_definition": "median of the 10 bracketed sequential measurements per n",
     "scale_variant": "matmul3_simd (parallel + #pragma omp simd)",
-    "scale_reference_rows": "an earlier full-grid sweep with matmul3_auto (compiler default, inner loop NOT vectorised) is kept for the SIMD comparison",
+    "scale_reference_rows": "pilot sweeps (seq/scale/simd/pcore, auto and simd variants) kept in the CSVs for transparency; drifted by cross-phase thermal effects",
     "scale_threads": [
       1,
       2,
@@ -99,7 +101,7 @@
     "timing_scope": "kernel only (matmul incl. memset of C); load + checksum outside timed region",
     "inputs": "data/inputs/A_n.bin, B_n.bin (identical to Assignments 1-2)"
   },
-  "git_commit": "e5222c1",
+  "git_commit": "b90244f",
   "commands": [
     "python scripts/build.py",
     "python scripts/generate_inputs.py",

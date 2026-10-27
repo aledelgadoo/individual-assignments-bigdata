@@ -39,18 +39,25 @@ src\matmul3_simd.exe selftest              # known answers, long-double referenc
 ## Campaign
 
 ```powershell
-python scripts/run_benchmark3.py --phase all     # seq | scale | simd | pcore
+python scripts/run_benchmark3.py --phase all2        # reported stable session
 python scripts/collect_env.py
 ```
 
-- `seq`: sequential baseline, all n.
-- `scale`: S(p), E(p) for p in {1,2,4,8,12,16} with `matmul3_simd`
-  (16 > 12 logical CPUs → oversubscription test). Earlier `matmul3_auto`
-  rows of the same grid are kept as the "compiler default" reference.
-- `simd`: scalar vs simd at p in {1,8,12}, n in {200,500,1000,2000}.
-- `pcore`: `matmul3_simd` confined to CPU0-3 (P-core threads only).
+The reported results come from the **stable session** (`--phase all2`, run
+after ~2.5 min heat-soak in one continuous pass under the High-performance
+power plan):
 
-Protocol per config: probe (gate = min(60 s, 2×max probe)) → 1 warmup →
+- `scale2`: for every n → `seqpre`, p in {1,2,4,8,12,16} (`matmul3_simd`),
+  `seqpost`; T_seq = median of the 10 bracketed runs (thermal drift control).
+- `pcore2`: `matmul3_simd` confined to CPU0-3, immediately after `scale2`.
+- `simd2`: scalar / auto / simd back-to-back in the same session
+  (vectorisation held separate from thread count).
+
+Earlier pilot phases (`--phase seq|scale|simd|pcore`) remain in the CSVs for
+transparency; they were affected by cross-phase thermal drift (documented in
+the report) and are not quoted.
+
+Protocol per config: probe (gate covers warm-up/thread-spawn cost) → 1 warmup →
 batch calibration (≥0.2 s per batch) → 5 measured repetitions. JSON lines
 per child run land in `data/results/raw_detail/`; per-config status in
 `configs.csv`; measurements in `raw_timings.csv`.
