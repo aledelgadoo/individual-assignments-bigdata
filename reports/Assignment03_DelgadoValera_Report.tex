@@ -12,7 +12,7 @@
 \captionsetup{font=small,labelfont=bf}
 
 \title{\textbf{Thread Scaling and SIMD Vectorisation for Dense Matrix
-Multiplication:\\ A Controlled Benchmarking Study}}
+Multiplication:\\ A Benchmarking Study}}
 \author{Alejandro Delgado Valera\\
 \small BIG DATA -- Individual Assignment 3\\
 \small Grado en Ciencia e Ingenier{\'i}a de Datos\\
@@ -24,96 +24,99 @@ Multiplication:\\ A Controlled Benchmarking Study}}
 \maketitle
 
 \begin{abstract}
-\noindent\textbf{Question:} how does the thread count $p$ affect the runtime of a
-shared-memory dense matrix multiplication, when does parallel execution help, and
-what does explicit SIMD vectorisation add once it is separated from thread-count
-effects? The study compares an equivalent sequential baseline against an OpenMP
-row-parallel implementation of the same validated \texttt{ikj} kernel
-(\texttt{float64}, identical inputs, layout and arithmetic order), with the
-parallel binary measured for $p \in \{1,2,4,8,12,16\}$ on a 10-core/12-thread
-hybrid CPU (2 P-cores + 8 E-cores), plus a three-way vectorisation control
-(scalar / compiler-default / \texttt{\#pragma omp simd}) at fixed $p$, and a
-P-cores-only confinement run. Timings are medians of five batched repetitions of
-the kernel; the sequential reference is bracketed around every thread sweep to
-remove thermal drift. Speedup reaches $S(16)=2.59$ at $n=2000$
-($E(16)=0.16$), efficiency peaks near $E(2)\approx0.8$ and collapses for small
-$n$ where fork/join costs dominate ($T_p(1)/T_{seq}=1.26$ at $n=50$).
-Oversubscribing the 12 hardware contexts with $p=16$ is neutral at large $n$
-(within variability) and harmful at $n\le100$. Explicit vectorisation is worth
-3.10$\times$ at $n=200$ down to 1.44$\times$ at $n=2000$ ($p=1$), and the
-evidence shows GCC did \emph{not} vectorise the parallel loop by default, so the
-pragma was necessary. Restricting execution to the four P-core threads is
-12--14\,\% faster at $n=2000$. Claims are scoped to this kernel, machine and
-protocol.
+\noindent\textbf{Question:} how does the number of threads $p$ affect a dense
+matrix multiplication on shared memory, when does it beat sequential
+execution, and what does SIMD vectorisation add on top of threads? We compare
+an equivalent sequential baseline with an OpenMP row-parallel implementation
+of the same validated \texttt{ikj} kernel (same \texttt{float64} data,
+inputs and arithmetic order). We measure $p \in \{1,2,4,8,12,16\}$ on a
+10-core/12-thread hybrid laptop CPU, study vectorisation at fixed $p$
+(scalar vs.\ compiler default vs.\ explicit pragma), and repeat the run
+confined to the four performance cores. Times are medians of five
+repetitions; the sequential reference is measured around every thread sweep
+to remove thermal drift. Parallelism pays off only from $n=200$ upward and
+stops scaling around $p=8$--$12$: the best speedup is $2.59\times$ at
+$n=2000$, and efficiency never exceeds $0.77$. With one thread the parallel
+code is 26\,\% slower at $n=50$ (fork/join overhead). Running 16 threads on
+12 execution contexts brings no gain and hurts small cases. Explicit SIMD is
+worth 1.4--3.1$\times$ at fixed $p$, and the evidence shows GCC did not
+vectorise the parallel loop by default. Confining the run to the performance
+cores is 12--14\,\% faster at $n=2000$. All claims apply only to this
+kernel, machine and protocol.
 \end{abstract}
 
 \section{Introduction and objective}
 
-Assignments~1 and~2 established a validated single-threaded baseline: a dense
-$O(n^3)$ multiplication whose \texttt{ikj} ordering is the fastest local variant
-on this machine~\cite{strang2016,cormen2022}. This assignment asks how that
-kernel behaves when it is executed by several hardware threads, and how much of
-the observed behaviour is due to threads versus SIMD vectorisation.
+Assignments~1 and~2 produced a validated single-threaded baseline: a dense
+$O(n^3)$ multiplication whose \texttt{ikj} loop order is the fastest local
+variant on this machine~\cite{strang2016,cormen2022}. This assignment
+studies how the same kernel behaves with several hardware threads, and how
+much of that behaviour comes from threads and how much from SIMD
+vectorisation.
 
 \textbf{Research question.}
-How does the thread count $p$ affect the multiplication time $T_p(n)$ of the
-validated \texttt{ikj} kernel, for which tested sizes does parallel execution
-beat the equivalent sequential baseline, and what speedup is attributable to
-vectorisation when thread count is held fixed?
+How does the thread count $p$ change the multiplication time $T_p(n)$? For
+which sizes is parallel execution faster than the sequential baseline? And
+what speed comes from vectorisation alone, with the thread count fixed?
 
 \textbf{Hypotheses (stated before measurement).}
 \begin{enumerate}
-  \item[H1:] Parallel speedup grows with $n$ and saturates well below $p$:
-        fork/join overhead is large relative to small kernels, and at large $n$
-        memory bandwidth and the heterogeneous P/E cores cap scaling.
-  \item[H2:] The parallel implementation with one thread reveals framework
-        overhead: $T_p(1) \ge T_{seq}(n)$, with the gap largest for small $n$.
-  \item[H3:] Testing $p=16$ on 12 hardware execution contexts is an
-        oversubscription configuration that brings no further gain and is most
-        costly for small kernels.
-  \item[H4:] At fixed $p$, the vectorised kernel is faster than the
-        non-vectorised control, the gain shrinking as $n$ grows and the
-        multiplication becomes memory-bound; compiler-default vectorisation of
-        the parallel loop cannot be assumed and must be evidenced per binary.
+  \item[H1:] Parallel speedup grows with $n$ but stays far below $p$:
+        fork/join costs dominate small multiplications, and at large $n$
+        memory bandwidth and the mixed P/E cores limit scaling.
+  \item[H2:] The parallel code with one thread shows the framework
+        overhead: $T_p(1) \ge T_{seq}(n)$, with the largest gap at small
+        $n$.
+  \item[H3:] Running $p=16$ threads on 12 hardware contexts
+        (oversubscription) brings no extra gain and is most costly for
+        small multiplications.
+  \item[H4:] At fixed $p$, the vectorised kernel is faster, with a smaller
+        gain as $n$ grows and the multiplication becomes memory-bound; and
+        compiler-default vectorisation of the parallel loop must not be
+        assumed---it has to be checked per binary.
 \end{enumerate}
 
 \section{Background}
 
-\textbf{Speedup and efficiency.} With $T_{seq}(n)$ the sequential baseline time
-and $T_p(n)$ the parallel time for the same input, $S(p)=T_{seq}(n)/T_p(n)$ and
-$E(p)=S(p)/p \le 1$ for a workload that does not change~\cite{fleming1986,mytkowicz2009}.
-Superlinear values ($S(p)>p$) would indicate a measurement or cache effect and
+\textbf{Speedup and efficiency.}
+With $T_{seq}(n)$ the sequential time and $T_p(n)$ the parallel time for
+the same input, $S(p)=T_{seq}(n)/T_p(n)$ and $E(p)=S(p)/p \le 1$ for a
+workload that does not change~\cite{fleming1986,mytkowicz2009}. A
+superlinear value ($S(p)>p$) would signal a measurement or cache effect and
 must be explained, not assumed~\cite{mytkowicz2009}.
 
-\textbf{OpenMP.} A \texttt{parallel for} construct forks a team of $p$ threads,
-executes the loop with a static partition over the outer index, and joins at an
-implicit barrier~\cite{openmp}. Because the outer index selects a row of $C$,
-each thread owns disjoint rows and the per-element summation order over $k$ is
-unchanged, so results are bitwise identical for every $p$; the inner loop over
-$j$ streams contiguous memory and is vectorisable.
+\textbf{OpenMP.}
+A \texttt{parallel for} loop forks $p$ threads, splits the outer index with
+a static schedule, and joins at the end~\cite{openmp}. Each thread writes
+disjoint rows of $C$, and the summation order over $k$ is unchanged, so
+every $p$ gives bitwise-identical results. The inner loop over $j$ walks
+contiguous memory, which suits vectorisation.
 
-\textbf{Hybrid CPUs.} The test machine pairs performance cores (P-cores,
-SMT-scheduled as two logical CPUs each) with efficiency cores (E-cores, one
-thread each). An equal static partition of rows gives every thread the same
-\emph{number} of rows but not the same \emph{cost} per row, which limits $E(p)$
-and makes thread placement part of the measurement~\cite{intelwapl}.
+\textbf{Hybrid CPUs.}
+The test laptop mixes performance cores (P-cores, two threads each) with
+efficiency cores (E-cores, one thread each). Splitting rows evenly gives
+every thread the same number of rows, but not the same cost: an E-core
+takes longer per row than a P-core. This limits $E(p)$ and makes thread
+placement part of the measurement~\cite{intelwapl}.
 
-\textbf{SIMD.} With \texttt{-march=native} the compiler targets AVX2 with FMA
-(32-byte vectors of four doubles; SSE4.2 and AVX enabled, AVX-512 disabled by
-the toolchain on this CPU). Vectorisation can be requested explicitly with
-\texttt{\#pragma omp simd}, and its effect must be separated from thread-count
-effects by holding $p$ fixed~\cite{intelig}.
+\textbf{SIMD.}
+With \texttt{-march=native} the compiler targets AVX2 with FMA (32-byte
+vectors, i.e.\ four doubles per vector; AVX-512 is disabled by the
+toolchain). The \texttt{\#pragma omp simd} requests vectorisation
+explicitly, and its effect must be measured at fixed $p$ so it is not mixed
+with thread effects~\cite{intelig}.
 
 \section{Methodology}
 
 \subsection{Implementations}
 
-One C source (\texttt{src/kernels.c}) is compiled four ways; every binary runs
-the same \texttt{ikj} kernel on the same \texttt{float64} row-major matrices and
-differs only in the flags of Table~\ref{tab:builds}. The sequential baseline and
-the parallel kernel perform the same operations in the same order (the parallel
-loop only redistributes rows), so they are equivalent by construction; the only
-documented differences are the OpenMP runtime linkage and the SIMD pragma.
+One C source (\texttt{src/kernels.c}) is compiled in four ways
+(Table~\ref{tab:builds}). All binaries run the same \texttt{ikj} kernel on
+the same \texttt{float64} row-major matrices; the only differences are the
+compiler flags. The sequential and parallel kernels do the same operations
+in the same order (the parallel loop only distributes rows), so they are
+equivalent; the documented differences are the OpenMP runtime and the SIMD
+pragma.
 
 \begin{table}[h!]
 \centering
@@ -128,48 +131,47 @@ Binary & Flags & Role \\
 \texttt{matmul3\_simd}   & \texttt{... -fopenmp -DUSE\_OMP\_SIMD}      & parallel, explicit pragma \\
 \bottomrule
 \end{tabular}
-\caption{The four builds of one shared source (\texttt{-std=c11 -Wall
--Wextra}, link \texttt{-lpsapi -lm}). \texttt{simd} adds \texttt{\#pragma omp
-simd} on the inner loop; all other code is identical.}
+\caption{Four builds of one shared source (\texttt{-std=c11 -Wall
+-Wextra}, linked with \texttt{-lpsapi -lm}). Only \texttt{simd} adds
+\texttt{\#pragma omp simd} on the inner loop.}
 \label{tab:builds}
 \end{table}
 
 {\sloppy
-Threading is controlled inside the process: \texttt{omp\_set\_dynamic(0)} plus
-\texttt{omp\_set\_num\_threads($p$)} before every timed run fixes the team size
-regardless of environment variables, and \texttt{schedule(static)} partitions
-rows evenly. There is no BLAS or other library with internal threads, so the
-reported $p$ is the whole configuration. Affinity is set at process level with
-\texttt{Set\-Process\-AffinityMask}: \texttt{all} = CPU0--11 (default runs) and
-\texttt{pcore} = CPU0--3 (the four P-core threads only); placement within the
-mask is left to the Windows scheduler, as libgomp on Windows provides no
-reliable binding---this is recorded as a limitation, not as a controlled
-variable.\par}
+Threads are controlled inside the process: \texttt{omp\_set\_dynamic(0)}
+and \texttt{omp\_set\_num\_threads($p$)} fix the team size before every
+timed run, and \texttt{schedule(static)} splits the rows evenly. No library
+with internal threads (no BLAS) is used, so the reported $p$ is the real
+configuration. Affinity is set at process level with
+\texttt{Set\-Process\-AffinityMask}: \texttt{all} = CPU0--11 and
+\texttt{pcore} = CPU0--3. Within the mask, placement is left to the Windows
+scheduler, because libgomp on Windows offers no reliable binding; this is
+recorded as a limitation.\par}
 
 \subsection{Inputs}
 
-Dense $A_n, B_n$ for $n \in \{50,100,200,500,1000,2000\}$, generated as in
+Dense matrices for $n \in \{50,100,200,500,1000,2000\}$, generated as in
 Assignments~1--2 (seed 42, uniform in $[-1,1]$, little-endian \texttt{<f8},
-row-major) and reused byte for byte, so results are comparable with the earlier
-reports. A third $n \times n$ buffer holds $C$, zeroed inside the timed kernel
-(every multiplication is complete and independent).
+row-major) and reused byte for byte. A third buffer holds $C$, zeroed
+inside the timed kernel.
 
 \subsection{Correctness}
 
-\texttt{selftest} (run on all four binaries, 31 checks for \texttt{seq}, 76 for
-the parallel builds, 0 failures) verifies known products, zero and identity
-matrices, random cases against a long-double reference ($\textit{rtol}=10^{-10}$,
-$\textit{atol}=10^{-12}$) and, for the parallel builds, \textbf{bitwise
-invariance} of the result for $p \in \{2,3,4,8,12\}$. During the campaign the
-checksum of $C$ is emitted after every measured batch: across all 222 configs
-and 1{,}110 measurements there is exactly one distinct checksum per $n$, i.e.
-every variant, thread count and affinity produced bitwise-identical matrices.
+The self-test (run on all four binaries; 31 checks for \texttt{seq}, 76 for
+the parallel builds; 0 failures) verifies known products, zero and identity
+matrices, and random cases against a long-double reference
+($\textit{rtol}=10^{-10}$, $\textit{atol}=10^{-12}$). For the parallel
+builds it also checks \textbf{bitwise invariance} for $p \in
+\{2,3,4,8,12\}$. During the campaign every measured batch emits a checksum
+of $C$: among 222 configs and 1{,}110 measurements there is exactly one
+distinct checksum per $n$, i.e.\ all variants, thread counts and affinities
+produced identical matrices.
 
 \subsection{Environment}
 
-Table~\ref{tab:env} summarises \texttt{data/results/environment.json}, captured
-during the measurement session. The High-performance power plan was active for
-the whole campaign and the Balanced plan restored afterwards.
+Table~\ref{tab:env} summarises \texttt{data/results/environment.json},
+captured during the measurement session. The High-performance power plan
+was active for the whole campaign and Balanced was restored afterwards.
 
 \begin{table}[h!]
 \centering
@@ -189,57 +191,55 @@ Python & 3.11.9, numpy 2.2.6, psutil 7.1.0 \\
 \bottomrule
 \end{tabular}
 \caption{Execution environment. Clock read-outs from \texttt{psutil} were
-unreliable on this platform (reported 1.7\,GHz flat) and are therefore not
-quoted.}
+unreliable on this platform and are not quoted.}
 \label{tab:env}
 \end{table}
 
 \subsection{Measurement protocol}
 
-Each config (variant $\times$ $p$ $\times$ $n$ $\times$ affinity) follows the
-common protocol of Assignment~2:
+Each configuration (variant $\times$ $p$ $\times$ $n$ $\times$ affinity)
+follows the protocol of Assignment~2:
 \begin{enumerate}
   \item \textbf{Probe:} one unchecked warm-up plus two timed single
-        multiplications; a config is skipped if a probe exceeds the 60\,s
-        budget; otherwise the bench budget is $\min(60\,\text{s}, 2\times
-        \max(\text{probe, probe warm-up}))$---the warm-up term covers the cost
-        of creating the thread team, which the first warm-up of the separate
-        bench process pays again.
-  \item \textbf{Bench:} one budget-checked warm-up, calibration by batch
-        doubling until one batch lasts $\ge 0.2$\,s, then 5 measured
-        repetitions of a full multiplication (kernel only: loads and checksums
-        are outside the timed region; \texttt{memset} of $C$ is inside, as part
-        of a complete multiplication).
-  \item \textbf{Summary statistic:} the \textbf{median} of the 5 batched
-        repetition times; variability is reported as the coefficient of
-        variation (CV) across them. Memory is the peak resident set size of the
-        process. Budgets: 60\,s and 4\,GiB per child; JSON lines of every run
-        are kept in \texttt{data/results/raw\_detail/}.
+        multiplications; a config is skipped if a probe exceeds 60\,s.
+        The bench budget is $\min(60\,\text{s}, 2\times
+        \max(\text{probe, probe warm-up}))$; the warm-up term covers the
+        cost of creating the thread team, which the bench process pays
+        again.
+  \item \textbf{Bench:} one warm-up, batch doubling until a batch lasts
+        $\ge 0.2$\,s, then 5 measured repetitions of a full multiplication
+        (kernel time only: loads and checksums are outside the timed
+        region; \texttt{memset} of $C$ is inside, as part of a complete
+        multiplication).
+  \item \textbf{Summary statistic:} the \textbf{median} of the 5
+        repetitions; variability is the coefficient of variation (CV).
+        Memory is the peak resident set size of the process. Budgets: 60\,s
+        and 4\,GiB per child; every run is stored as JSON lines in
+        \texttt{data/results/raw\_detail/}.
 \end{enumerate}
 
-\textbf{Thermal bracketing (stability control).} A pilot campaign showed that
-cross-phase comparisons were contaminated by clock drift on this laptop: the
-same binary and config measured $3.22$\,s and $4.35$\,s ($+35$\,\%) in two
-sessions, and $S(1)$ deviated to 0.66--0.76. The reported session therefore
-(1) heat-soaks the machine for $\approx 2.5$\,min (two minutes of sustained
-12-thread multiplications) until the package reaches steady state, and (2)
-\emph{brackets} every thread sweep: for each $n$ the sequence is
-\texttt{seqpre} $\rightarrow$ $p \in \{1,\dots,16\}$ $\rightarrow$
-\texttt{seqpost}, with $T_{seq}(n)$ taken as the median of the 10 bracketed
-sequential measurements taken seconds apart from the sweep. The \texttt{simd2}
-and \texttt{pcore2} blocks run back-to-back in the same session. All 96
-stable-session configs and all 126 earlier configs finished with status
-\texttt{ok}; the earlier (drifted) rows are retained in the CSVs for
-transparency but the report quotes the stable session only.
+\textbf{Thermal drift control.}
+A pilot campaign showed that results moved between sessions on this
+laptop: the same binary and config measured $3.22$\,s and $4.35$\,s
+($+35$\,\%) in two sessions, and $S(1)$ fell to 0.66--0.76. The reported
+session therefore (1) warms up the machine for about 2.5\,min with
+sustained 12-thread multiplications, and (2) \emph{brackets} every thread
+sweep: for each $n$ the sequence is \texttt{seqpre} $\rightarrow$ $p \in
+\{1,\dots,16\}$ $\rightarrow$ \texttt{seqpost}, and $T_{seq}(n)$ is the
+median of the 10 bracketed sequential runs, measured seconds apart from
+the sweep. The \texttt{simd2} and \texttt{pcore2} blocks run in the same
+session, one after the other. All 96 stable-session configs and all 126
+earlier configs finished with status \texttt{ok}; the earlier rows stay in
+the CSVs for transparency, and the report quotes only the stable session.
 
 \section{Results}
 
 \subsection{Runtime, speedup and efficiency}
 
-Table~\ref{tab:runtime} gives the medians behind every $S$ and $E$;
-Table~\ref{tab:scaling} collects $S(p)$ and $E(p)$. Median CV across the 36
+Table~\ref{tab:runtime} gives the median times behind every $S$ and $E$;
+Table~\ref{tab:scaling} collects $S(p)$ and $E(p)$. The median CV of the 36
 scaling configs is 5.1\,\% (max 13.6\,\%). Figures~\ref{fig:runtime}
-to~\ref{fig:efficiency} show the same data graphically.
+to~\ref{fig:efficiency} show the same data.
 
 \begin{table}[h!]
 \centering
@@ -306,15 +306,16 @@ marks the 12 hardware contexts, the dashed line the oversubscribed $p=16$.}
 \label{fig:efficiency}
 \end{figure}
 
-\textbf{When does parallelism help?} Only for $n \ge 200$: at $n=50$
-$T_p(p)>T_{seq}$ for every $p$, and at $n=100$ the parallel time is flat at
-$\approx0.16$\,ms for $p \le 8$, i.e.\ the fixed cost of the parallel region
-($\sim$15--30\,$\mu$s per multiplication at this size) dominates and extra
-threads do not shorten it. For $n \ge 200$ the sweep is monotone up to $p=8$
-and saturates: the best observed speedups are $S(12)=2.56$ at $n=1000$ and
-$S(16)=2.59$ at $n=2000$, with $E \le 0.77$ everywhere (best at $p=2$ for
-$n \ge 200$). No configuration is superlinear; the only point above parity at
-$p{=}1$ is $S(1)=1.07$ at $n=200$, which is within that config's 8.2\,\% CV and
+\textbf{When does parallelism help?}
+Only for $n \ge 200$. At $n=50$ every parallel run is slower than
+sequential. At $n=100$ the parallel time stays flat at $\approx0.16$\,ms
+for $p \le 8$: the fixed cost of the parallel region ($\sim$15--30\,$\mu$s
+per multiplication at this size) dominates, and extra threads do not
+shorten it. For $n \ge 200$ the time falls up to $p=8$ and then
+saturates. The best speedups are $S(12)=2.56$ at $n=1000$ and $S(16)=2.59$
+at $n=2000$; $E$ is at most $0.77$ everywhere (best at $p=2$ for $n \ge
+200$). No configuration is superlinear. The single point above parity at
+$p{=}1$, $S(1)=1.07$ at $n=200$, lies inside that config's 8.2\,\% CV and
 is not claimed as a real gain.
 
 \subsection{Framework overhead with one thread}
@@ -339,27 +340,26 @@ $n$ & $T_{seq}$ ($\mu$s) & $T_p(1)$ ($\mu$s) & $T_p(1)/T_{seq}$ \\
 \label{tab:overhead}
 \end{table}
 
-Table~\ref{tab:overhead} confirms H2 in the regime where it matters: at
-$n=50$ the single-threaded parallel run is 26\,\% slower---about
-4.5\,$\mu$s of fork/join on an 17.5\,$\mu$s kernel. For $n \ge 200$ the ratio
-stays within $\pm 8$\,\% of parity (both binaries run the same vectorised
-inner loop), with the $+8$\,\% at $n=2000$ attributable to residual
-within-session drift between the bracketed baseline and the sweep start.
+Table~\ref{tab:overhead} confirms H2 where it matters: at $n=50$ the
+parallel code with one thread is 26\,\% slower, which is about
+4.5\,$\mu$s of fork/join overhead on a kernel of only 17.5\,$\mu$s. For $n
+\ge 200$ the ratio stays within $\pm 8$\,\% of parity (both binaries run
+the same vectorised inner loop); the $+8$\,\% at $n=2000$ comes from small
+drift inside the session between the baseline and the sweep.
 
 \subsection{Vectorisation (optional extension)}
 
-Thread count is held fixed while only the build changes (the \texttt{simd2}
-block, all three variants measured back-to-back). Evidence that vectorisation
-occurs: \texttt{-fopt-info-vec-optimized} reports the inner loop of
-\texttt{matmul3\_seq} and of the pragma build vectorised with 32-byte vectors,
-and per-symbol \texttt{objdump} finds packed FMA arithmetic in
-\texttt{matmul\_ikj\_seq} (2) and in \texttt{matmul\_ikj\_par.\_omp\_fn.0}
-(2) of the \texttt{simd} binary, while the \texttt{scalar} binary contains
-none (0). The same inspection of \texttt{matmul3\_auto} shows packed
-instructions only in the sequential function it never calls: \textbf{GCC did not
-vectorise the outlined parallel loop under \texttt{-O2}, so the explicit pragma
-was necessary} (hypothesis H4's caution). Full listings are in
-\texttt{data/results/vectorisation.txt}.
+Thread count is fixed and only the build changes (the \texttt{simd2}
+block, three variants measured back-to-back). Evidence that vectorisation
+happens: \texttt{-fopt-info-vec-optimized} reports the inner loop of
+\texttt{matmul3\_seq} and of the pragma build vectorised with 32-byte
+vectors, and \texttt{objdump} finds packed FMA instructions in
+\texttt{matmul\_ikj\_seq} and in \texttt{matmul\_ikj\_par.\_omp\_fn.0} of
+the \texttt{simd} binary (2 each) and none in the \texttt{scalar} binary.
+The \texttt{auto} binary has packed instructions only in the sequential
+function it never calls: \textbf{GCC did not vectorise the parallel loop
+under \texttt{-O2}, so the explicit pragma was necessary} (the caution in
+H4). Full listings are in \texttt{data/results/vectorisation.txt}.
 
 \begin{table}[h!]
 \centering
@@ -389,31 +389,29 @@ vectorised inner loop as \texttt{simd}.}
 \label{fig:simd}
 \end{figure}
 
-Table~\ref{tab:simd} and Figure~\ref{fig:simd} quantify H4: the pragma is
-worth 3.10$\times$ at $n=200$ but only 1.44$\times$ at $n=2000$ ($p=1$),
-because at $n=200$ the working set fits in cache (compute-bound, close to the
-4$\times$ width of 256-bit vectors over scalar), while at $n=2000$ the three
-32\,MB matrices stream from DRAM and the arithmetic is no longer the
-bottleneck. The gain persists at high thread counts (1.47--1.83$\times$ at
-$p=8$): vectorisation and threading compose, and their effects are separated by
-construction---all rows of Table~\ref{tab:scaling} use one binary
-(\texttt{simd}), while Table~\ref{tab:simd} varies only the binary at fixed
-$p$. The scalar column additionally bounds the ``compiler default''
-configuration, whose parallel loop is scalar as shown above.
+Table~\ref{tab:simd} and Figure~\ref{fig:simd} quantify H4. The pragma is
+worth 3.10$\times$ at $n=200$ but only 1.44$\times$ at $n=2000$ ($p=1$).
+At $n=200$ the working set fits in cache, so the run is compute-bound and
+close to the 4$\times$ width of 256-bit vectors over scalar code; at
+$n=2000$ the three 32\,MB matrices are streamed from DRAM, and arithmetic
+is no longer the bottleneck. The gain remains at high thread counts
+(1.47--1.83$\times$ at $p=8$): vectorisation and threads compose. Their
+effects stay separate by construction: every row of
+Table~\ref{tab:scaling} uses the \texttt{simd} binary, while
+Table~\ref{tab:simd} varies only the binary at fixed $p$.
 
 \subsection{Oversubscription at $p=16$}
 
-The hardware provides 12 execution contexts, so $p=16$ is an oversubscribed
-configuration (H3). Observed effect (Tables~\ref{tab:runtime}
-and~\ref{tab:scaling}): at $n=2000$, $p=16$ is within CV of $p=12$
-($S$: 2.59 vs.\ 2.57, i.e.\ $+0.8$\,\%, below the 3.7--3.9\,\% CV of those
-configs)---no gain, no collapse; at $n=1000$ it is 2\,\% slower; at $n=100$
-it is 10\,\% slower than $p=12$ and at $n=50$ 28\,\% slower, because sixteen
+The hardware has 12 execution contexts, so $p=16$ is an oversubscribed
+configuration (H3). At $n=2000$, $p=16$ is inside the variability of $p=12$
+($S$: 2.59 vs.\ 2.57, i.e.\ $+0.8$\,\%, below the 3.7--3.9\,\% CV of both
+configs): no gain, but no collapse either. At $n=1000$ it is 2\,\% slower;
+at $n=100$, 10\,\% slower than $p=12$; at $n=50$, 28\,\% slower: sixteen
 thread wake-ups and barrier crossings are paid for a kernel that is shorter
 than the parallel region itself. Efficiency at $p=16$ never exceeds 0.16.
-Oversubscription is therefore confirmed as \emph{pointless}: the extra runnable
-threads only contend for the same 12 contexts while adding scheduling and
-barrier cost that shows up exactly where the useful work is smallest.
+Oversubscription is therefore pointless: the extra threads only compete for
+the same 12 contexts and add scheduling cost exactly where the useful work
+is smallest.
 
 \subsection{P-cores vs.\ all cores}
 
@@ -447,98 +445,104 @@ threads) vs.\ CPU0--11 (ratio $<$ 1 favours the P-cores-only run).}
 \label{fig:pcore}
 \end{figure}
 
-At $n=2000$ (Table~\ref{tab:pcore}, Figure~\ref{fig:pcore}) confining to the
-four P-core threads is 12--14\,\% faster than allowing the OS to schedule over
-all 12 contexts: the P-cores do more work per cycle and no E-core thread
-becomes the slowest partition behind the barrier. At $n=1000$ the effect
-changes sign with $p$ and at $n=500$ the restricted run is 8\,\% slower---all
-within the $\pm 13$\,\% variability band of these medium configs---so the
-confinement advantage is a large-$n$ result only.
+At $n=2000$ (Table~\ref{tab:pcore}, Figure~\ref{fig:pcore}) confining the
+process to the four P-core threads is 12--14\,\% faster than scheduling
+over all 12 contexts: the P-cores do more work per cycle, and no E-core
+thread becomes the slowest partition behind the barrier. At $n=1000$ the
+effect changes sign with $p$, and at $n=500$ the restricted run is
+8\,\% slower; both are inside the $\pm 13$\,\% variability of these medium
+configs. The advantage is therefore a large-$n$ result.
 
 \subsection{Memory}
 
-Peak resident memory (all configs of a given $n$) is 5.4, 6.2, 11.0, 28.2 and
-96.8\,MB for $n=50,200,500,1000,2000$ respectively; at $n=2000$ that is
-essentially $3 \times 32$\,MB of matrices plus process overhead, identical for
-every $p$: static row partitioning allocates no per-thread copies and creates
-no shared-data races (consistent with the bitwise checksum invariance).
+Peak resident memory is 5.4, 6.2, 11.0, 28.2 and 96.8\,MB for $n=50, 200,
+500, 1000, 2000$. At $n=2000$ this is essentially $3 \times 32$\,MB of
+matrices plus process overhead, and it does not depend on $p$: static row
+partitioning allocates no per-thread copies and creates no races
+(consistent with the checksum invariance).
 
 \section{Discussion}
 
-\textbf{Answer to the research question.} On this machine and kernel,
-parallel execution helps only from $n=200$ upwards and only up to about
-$p=8$--$12$: the measured ceiling is $S \approx 2.6$, far below $p=12$. The
-evidence attributes this to three compounding effects: (1) fixed parallel-region
-costs, which are 26\,\% of a $n=50$ multiplication and explain the flat
-$n=100$ curve; (2) heterogeneity---an equal row partition is not equal work on
-2 P-cores + 8 E-cores, and the P-cores-only run beating the all-CPU run by up
-to 14\,\% at $n=2000$ shows placement matters at large $n$; and (3)
-memory---at $n=2000$ the streaming of three 32\,MB matrices bounds the useful
-parallelism, which also caps the vectorisation gain at 1.44$\times$. H1, H2,
-H3 and H4 are all supported by the data above, with H4's second part (default
-vectorisation cannot be assumed) demonstrated per binary rather than assumed.
+\textbf{Answer to the research question.}
+On this machine and kernel, parallel execution helps only from $n=200$
+upward and only up to about $p=8$--$12$; the measured ceiling is
+$S \approx 2.6$, far below $p=12$. Three effects add up: (1) fixed
+parallel-region costs, which are 26\,\% of an $n=50$ multiplication and
+explain the flat $n=100$ curve; (2) core heterogeneity: an equal row split
+is not equal work on 2 P-cores + 8 E-cores, and the P-cores-only run beating
+all-CPU scheduling by up to 14\,\% at $n=2000$ shows that placement matters
+at large $n$; and (3) memory: at $n=2000$ the streaming of three 32\,MB
+matrices limits useful parallelism and also caps the vectorisation gain at
+1.44$\times$. H1--H4 are all supported, and H4's second part (default
+vectorisation cannot be assumed) is demonstrated per binary.
 
-\textbf{Methodological findings.} Two instrument bugs were found and fixed
-before the reported session: a gate that ignored the thread-team creation cost
-of the bench process (fixed by including the probe warm-up in the gate), and
-cross-phase thermal drift that depressed $S(1)$ to 0.66 (fixed by heat-soak and
-sequential bracketing). The pilot rows are kept in the CSVs; the stability of
-the reported session is visible as $S(1) \in [0.92, 1.07]$ for $n \ge 100$ and
-median CV 5.1\,\%.
+\textbf{Methodological findings.}
+Two instrument bugs were found and fixed before the reported session: a
+gate that ignored the thread-team creation cost of the bench process (fixed
+by including the probe warm-up in the gate), and cross-phase thermal drift
+that depressed $S(1)$ to 0.66 (fixed by warm-up and sequential
+bracketing). The pilot rows stay in the CSVs. The stability of the reported
+session is visible as $S(1) \in [0.92, 1.07]$ for $n \ge 100$ and median CV
+5.1\,\%.
 
 \textbf{Limitations.}
 \begin{itemize}
-  \item One hybrid laptop, one kernel, one input distribution; results do not
-        generalise to servers, other BLAS libraries or structured data.
-  \item Windows schedules threads inside the affinity mask; P/E placement and
-        boost states were not pinned per thread, so $\pm 5$--13\,\% run-to-run
-        variability remains (median CV 5.1\,\%).
-  \item The sequential baseline and the parallel binary differ in linkage and
-        in the OpenMP region by construction; at $p=1$ a residual $\pm 8$\,\%
-        gap remains (drift, scheduling), so $S(1)$ is parity within noise, not
-        an exact 1.00.
-  \item Efficiency losses are not decomposed into bandwidth counters
-        (no hardware counters were collected on Windows).
-  \item The \texttt{auto} build's missing vectorisation is a GCC 16
-        \texttt{-O2} cost-model outcome; other compilers or \texttt{-O3} may
-        differ.
+  \item One hybrid laptop, one kernel, one input distribution: results do
+        not generalise to servers, other BLAS libraries or structured
+        data.
+  \item Windows places threads inside the affinity mask; P/E placement and
+        boost states were not pinned per thread, so $\pm 5$--13\,\%
+        run-to-run variability remains (median CV 5.1\,\%).
+  \item At $p=1$ a residual $\pm 8$\,\% gap remains between baseline and
+        parallel binary (drift, scheduling), so $S(1)$ is parity within
+        noise, not an exact 1.00.
+  \item No hardware performance counters were collected on Windows, so
+        efficiency losses are not split into bandwidth and other terms.
+  \item The missing vectorisation of the \texttt{auto} build is a GCC 16
+        \texttt{-O2} cost-model decision; other compilers or \texttt{-O3}
+        may differ.
 \end{itemize}
 
-Following the assignment guidance, claims are limited to these
+As the assignment requests, the claims are limited to these
 implementations, inputs and hardware~\cite{fleming1986,mytkowicz2009}.
 
 \section{Conclusions}
 
-Within the tested scope: (1) the OpenMP row-parallel \texttt{ikj} kernel beats
-its equivalent sequential baseline only for $n \ge 200$, peaking at
-$S(12)=2.56$ ($n=1000$) and $S(16)=2.59$ ($n=2000$), i.e.\ threads buy $\le
-2.6\times$ on 12 hardware contexts; (2) efficiency is the binding metric:
-$E(p) \le 0.77$ everywhere and $\le 0.21$ for $p \ge 12$, driven by fixed
-parallel-region cost at small $n$ and by P/E asymmetry plus memory bandwidth at
-large $n$; (3) one-thread parallel overhead is 26\,\% at $n=50$ and within
-$\pm 8$\,\% of parity for $n \ge 200$; (4) oversubscribing ($p=16>12$) yields
-no gain at large $n$ and up to $-28$\,\% at $n=50$, confirming it is
-harmful exactly where the per-thread work is least; (5) explicit
-\texttt{\#pragma omp simd} is worth 1.4--3.1$\times$ at fixed thread count,
-was \emph{necessary} because GCC's default did not vectorise the parallel loop,
-and composes with threading; and (6) confining the process to the four P-core
-threads is 12--14\,\% faster at $n=2000$.
+Within the tested scope:
+\begin{enumerate}
+  \item The OpenMP row-parallel \texttt{ikj} kernel beats its sequential
+        baseline only for $n \ge 200$, with a peak of $S(12)=2.56$
+        ($n=1000$) and $S(16)=2.59$ ($n=2000$): threads buy at most about
+        $2.6\times$ on 12 hardware contexts.
+  \item Efficiency is the binding metric: $E(p) \le 0.77$ everywhere and
+        $\le 0.21$ for $p \ge 12$, because of fixed parallel-region cost at
+        small $n$ and of P/E asymmetry plus memory bandwidth at large $n$.
+  \item The one-thread parallel overhead is 26\,\% at $n=50$ and within
+        $\pm 8$\,\% of parity for $n \ge 200$.
+  \item Oversubscription ($p=16$ on 12 contexts) gives no gain at large $n$
+        and costs up to 28\,\% at $n=50$: it hurts exactly where the work
+        per thread is smallest.
+  \item Explicit \texttt{\#pragma omp simd} is worth 1.4--3.1$\times$ at
+        fixed $p$, was necessary because GCC did not vectorise the parallel
+        loop by default, and composes with threading.
+  \item Confining the process to the four P-core threads is 12--14\,\%
+        faster at $n=2000$.
+\end{enumerate}
 
-Unresolved: whether the scaling ceiling moves if rows are weighted by core
-type, whether bandwidth can be relieved by tiling in the parallel kernel, and
-how these results compare with a distributed implementation
-(Assignment~4).
+Open questions: whether a core-weighted row partition raises the scaling
+ceiling, whether tiling relieves the bandwidth limit, and how these results
+compare with a distributed implementation (Assignment~4).
 
 \section{References and materials}
 
 {\sloppy
-All source code, shared inputs, raw measurements (CSV per config and JSON lines
-per run), \texttt{environment.json}, \texttt{vectorisation.txt}, the executed
-analysis notebook and every figure live in the public repository
-\url{https://github.com/aledelgadoo/individual-assignments-bigdata}. The Git
-tag \texttt{assignment-3} marks the exact submitted state (tags
-\texttt{assignment-1} and \texttt{assignment-2} preserve the earlier reports).
-\texttt{README.md} documents the build, input-generation, self-test,
+All source code, shared inputs, raw measurements (CSV per config, JSON lines
+per run), \texttt{environment.json}, \texttt{vectorisation.txt}, the
+executed analysis notebook and every figure are in the public repository
+\url{https://github.com/aledelgadoo/individual-assignments-bigdata}. The
+Git tag \texttt{assignment-3} marks the submitted state (tags
+\texttt{assignment-1} and \texttt{assignment-2} keep the earlier reports).
+\texttt{README.md} documents the build, input generation, self-test,
 campaign and analysis commands that regenerate this report end to end; the
 notebook \texttt{notebooks/03\_analysis.ipynb} writes the summary tables
 (\texttt{summary\_scale.csv}, \texttt{summary\_simd.csv},
@@ -547,14 +551,15 @@ notebook \texttt{notebooks/03\_analysis.ipynb} writes the summary tables
 \section*{Generative-AI usage statement}
 
 Following the course policy, the author discloses that the AI assistant
-\textbf{opencode} (model \texttt{opencode/mimo-v2.6-flash-free}) was used, under
-the author's direction, for planning the OpenMP/SIMD design and the
+\textbf{opencode} (model \texttt{opencode/mimo-v2.6-flash-free}) was used,
+under the author's direction, for planning the OpenMP/SIMD design and the
 measurement protocol, drafting and debugging the C code and Python scripts,
 diagnosing the two pilot-campaign instrument bugs, generating the analysis
 notebook and figures, and revising the English of this report. The author
-reviewed all generated code, ran and inspected the self-tests, supervised every
-campaign execution, verified the numbers quoted here against the raw CSV files,
-and is responsible for the measurements, the conclusions and any errors.
+reviewed all generated code, ran and inspected the self-tests, supervised
+every campaign execution, verified the numbers quoted here against the raw
+CSV files, and is responsible for the measurements, the conclusions and any
+errors.
 
 \begin{thebibliography}{9}
 \bibitem{strang2016}
