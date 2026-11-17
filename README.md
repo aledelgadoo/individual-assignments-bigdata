@@ -1,71 +1,106 @@
-# Assignment 3 — Parallel & SIMD dense matrix multiplication
+# Assignment 4 — Distributed dense matrix multiplication (PySpark)
 
-OpenMP parallelisation and SIMD vectorisation of dense matrix multiplication
-on an Intel hybrid CPU (i7-1355U: 2 P-cores + 8 E-cores, 12 logical CPUs).
+Row-block partitioning of `A` with `B` replicated to every worker, one
+numpy/BLAS kernel per block, results collected on the driver — run on a
+PySpark 4.3 **standalone cluster on localhost** (1 master + N single-core
+worker processes, driver = the submitting Python process, **one physical
+machine**).
 
-The kernel is the `ikj` ordering validated in Assignment 2 (row-parallel,
-elementwise inner loop). The equivalent sequential baseline is the same
-kernel without OpenMP, compiled with the same optimisation level.
+Research question: how does the distributed multiplication scale with
+workers, how is the end-to-end time split between computation,
+communication and framework overhead, and how does it compare with the
+validated sequential and parallel baselines from Assignments 1–3.
 
-## Build (four binaries from one shared source)
+Everything runs over loopback, so no inter-machine network claim is made.
+
+## Environment
 
 ```powershell
-python scripts/build.py
+python -m pip install -r requirements-a4.txt   # pyspark, numpy, psutil, zstandard
+python scripts/fetch_winutils.py               # HADOOP_HOME\bin\winutils.exe -> build/hadoop (git-ignored)
 ```
 
-| Binary               | Flags                                                | Purpose                          |
-|----------------------|------------------------------------------------------|----------------------------------|
-| `matmul3_seq.exe`    | `-O2 -march=native`                                 | Sequential baseline              |
-| `matmul3_scalar.exe` | `-O2 -march=native -fopenmp -fno-tree-vectorize`    | Parallel, SIMD disabled (control)|
-| `matmul3_auto.exe`   | `-O2 -march=native -fopenmp`                        | Parallel, autovectorisation      |
-| `matmul3_simd.exe`   | `-O2 -march=native -fopenmp -DUSE_OMP_SIMD`         | Parallel, `#pragma omp simd`     |
+`build/hadoop` is required because Spark writes its event log through
+Hadoop's `LocalFileSystem`; only Hadoop FileSystem calls need it.
 
-Vectorisation evidence: `data/results/vectorisation.txt` (opt-info + objdump).
+Windows fixes applied in `src/spark/sparkconf.py`:
+
+| Problem | Fix |
+|---------|-----|
+| hostname is not a valid Spark URL host | `spark.driver.host` / `spark.driver.bindAddress` = `127.0.0.1` |
+| App Execution Alias for `python` prints the Store banner | `PYSPARK_PYTHON` / `spark.pyspark.python` = real interpreter path |
+| worker daemons must bind loopback | `SPARK_LOCAL_IP=127.0.0.1` |
+| `sc.broadcast` fails with `ERROR_SHARING_VIOLATION` | `sc.addFile()` + `SparkFiles.get()` instead (same `8n²` bytes per worker) |
+| Windows cannot reuse Python workers (`os.fork` unavailable) | every task spawns a fresh worker — measured, documented in the report |
+| BLAS would use every core | `OPENBLAS_NUM_THREADS=1` set before `numpy` is imported, plus `spark.executorEnv.*` |
 
 ## Inputs
 
 ```powershell
-python scripts/generate_inputs.py          # dense A_n/B_n, byte-identical to A1/A2
+python scripts/generate_inputs.py          # dense A_n/B_n for n in 10..4000
 python scripts/generate_inputs.py --check
 ```
 
-## Correctness
+Sizes 10–2000 are byte-identical to Assignments 1–3; 2500/3200/4000 are the
+Assignment 4 weak-scaling sizes (`n(p) = 2000 · p^(1/3)`).
+
+## Correctness reference
 
 ```powershell
-src\matmul3_simd.exe selftest              # known answers, long-double reference,
-                                           # bitwise thread invariance (p=2..12)
+python scripts/build.py                    # matmul3_* binaries (Assignment 3 kernels)
+src\matmul3_seq.exe dump --n 4000 --a data\inputs\A_4000.bin --b data\inputs\B_4000.bin --out build\ref\C_4000_seq.bin
 ```
+
+`dump` writes the validated sequential result to `build/ref/C_<n>_seq.bin`;
+every distributed run is compared against it with `rtol=1e-9`, `atol=1e-12`
+(BLAS summation order differs from `ikj`, so bitwise equality is not expected).
+
+## Cluster
+
+```powershell
+python scripts/spark_cluster.py start --workers 8
+python scripts/spark_cluster.py status
+python scripts/spark_cluster.py stop
+```
+
+One worker = one standalone worker process = one JVM = one core; the driver
+and the master are separate processes. `environment.json` records the PIDs
+and the topology actually used.
 
 ## Campaign
 
 ```powershell
-python scripts/run_benchmark3.py --phase all2        # reported stable session
+python scripts/run_benchmark4.py --phase all --soak-s 300
 python scripts/collect_env.py
 ```
 
-The reported results come from the **stable session** (`--phase all2`, run
-after ~2.5 min heat-soak in one continuous pass under the High-performance
-power plan):
+Phases: `strong` (n ∈ {2000,4000} × p ∈ {1,2,4,8}), `weak`
+((p,n) = (1,2000),(2,2500),(4,3200),(8,4000)), `size` (n ∈
+{500,1000,2000,4000} at p=4), `baselines` (numpy BLAS, C sequential, C
+OpenMP at 1/2/4/8 threads), or `all`. The script sets the High-performance
+power plan, heat-soaks the machine, restarts the cluster only between
+groups of `p`, and restores Balanced afterwards.
 
-- `scale2`: for every n → `seqpre`, p in {1,2,4,8,12,16} (`matmul3_simd`),
-  `seqpost`; T_seq = median of the 10 bracketed runs (thermal drift control).
-- `pcore2`: `matmul3_simd` confined to CPU0-3, immediately after `scale2`.
-- `simd2`: scalar / auto / simd back-to-back in the same session
-  (vectorisation held separate from thread count).
+Timing boundary: `t_e2e = t_stage_a + t_action_job + t_assemble` per
+repetition; `t_startup` and `t_replicate` are one-time per application and
+are reported beside it. Protocol per config: 1 warm-up + 3 measured
+repetitions (5 for baselines), median as the summary statistic.
 
-Earlier pilot phases (`--phase seq|scale|simd|pcore`) remain in the CSVs for
-transparency; they were affected by cross-phase thermal drift (documented in
-the report) and are not quoted.
-
-Protocol per config: probe (gate covers warm-up/thread-spawn cost) → 1 warmup →
-batch calibration (≥0.2 s per batch) → 5 measured repetitions. JSON lines
-per child run land in `data/results/raw_detail/`; per-config status in
-`configs.csv`; measurements in `raw_timings.csv`.
-
-Set the power plan to **High performance** for the campaign
-(`powercfg /setactive SCHEME_MIN`), restore Balanced afterwards.
+Outputs: `data/results/configs4.csv` (per-config status),
+`raw_timings4.csv` (168 measurements), `raw_detail/<tag>.jsonl` (JSON lines
+per run incl. in-worker `matmul_ms`), and `environment.json`.
 
 ## Analysis
 
-`notebooks/03_analysis.ipynb` → figures in `reports/figures/`,
-tables + narrative in `reports/Assignment03_DelgadoValera_Report.tex`.
+```powershell
+jupyter nbconvert --execute --to notebook --inplace notebooks/04_analysis.ipynb
+```
+
+Writes `data/results/summary_{strong,weak,size,compare}.csv` and the figures
+in `reports/figures/`. The report is
+`reports/Assignment04_DelgadoValera_Report.tex` (compile with `latexmk -pdf`).
+
+## Previous assignments
+
+Tags `assignment-1`, `assignment-2` and `assignment-3` keep the earlier
+reports, harnesses and measurements (Assignment 3: OpenMP + SIMD scaling).
