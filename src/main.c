@@ -187,9 +187,71 @@ static int cmd_bench(int argc, char **argv) {
     return 0;
 }
 
+/* dump --Assignment 4: write C to a raw little-endian <f8 row-major file so
+ * the distributed implementation can be compared element-wise (rtol/atol)
+ * against this validated kernel.  Not used by the Assignment 3 protocol. */
+static int cmd_dump(int argc, char **argv) {
+    const char *a_path = require_arg(argc, argv, "--a");
+    const char *b_path = require_arg(argc, argv, "--b");
+    const char *out_path = require_arg(argc, argv, "--out");
+    int n = (int)long_arg(argc, argv, "--n");
+    int threads = (int)long_arg(argc, argv, "--threads");
+    const char *affinity = find_arg(argc, argv, "--affinity");
+
+    if (n <= 0) die("--n must be positive");
+    if (threads <= 0) threads = 1;
+    if (affinity == NULL) affinity = "all";
+    if (strcmp(affinity, "all") != 0 && strcmp(affinity, "pcore") != 0) {
+        die("--affinity must be all or pcore");
+    }
+    apply_settings(threads, affinity);
+
+    double *A = load_matrix(a_path, n);
+    double *B = load_matrix(b_path, n);
+    size_t len = (size_t)n * (size_t)n;
+    double *C = xmalloc(len * sizeof(double));
+    kernel_fn f = current_kernel();
+
+    double t0 = now_ns();
+    f(n, A, B, C);
+    double dt = now_ns() - t0;
+
+    FILE *out = fopen(out_path, "wb");
+    if (out == NULL) die("cannot open --out for writing");
+    if (fwrite(C, sizeof(double), len, out) != len) die("short write on --out");
+    if (fclose(out) != 0) die("fclose failed on --out");
+
+    /* JSON-escape the path: Windows separators would otherwise emit \r \t
+     * escapes and make the line unparseable. */
+    char esc[1024];
+    size_t j = 0;
+    for (const char *p = out_path; *p != '\0' && j + 2 < sizeof(esc); p++) {
+        if (*p == '\\' || *p == '"') {
+            esc[j++] = '\\';
+            esc[j++] = *p;
+        } else if ((unsigned char)*p < 0x20) {
+            esc[j++] = ' ';
+        } else {
+            esc[j++] = *p;
+        }
+    }
+    esc[j] = '\0';
+
+    emit("{\"mode\":\"dump\",\"variant\":\"%s\",\"n\":%d,\"threads\":%d,"
+         "\"affinity\":\"%s\",\"kernel_ns\":%.0f,\"checksum\":%.17g,"
+         "\"bytes\":%zu,\"out\":\"%s\"}",
+         kernel_variant(), n, threads, affinity, dt, checksum(C, len),
+         len * sizeof(double), esc);
+
+    free(A);
+    free(B);
+    free(C);
+    return 0;
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
-        die("usage: selftest | probe | bench  (see --help in scripts)");
+        die("usage: selftest | probe | bench | dump  (see --help in scripts)");
     }
     if (strcmp(argv[1], "selftest") == 0) {
         return run_selftest();
@@ -200,6 +262,9 @@ int main(int argc, char **argv) {
     if (strcmp(argv[1], "bench") == 0) {
         return cmd_bench(argc, argv);
     }
-    die("unknown mode (expected selftest, probe or bench)");
+    if (strcmp(argv[1], "dump") == 0) {
+        return cmd_dump(argc, argv);
+    }
+    die("unknown mode (expected selftest, probe, bench or dump)");
     return 1;
 }

@@ -1,5 +1,5 @@
 {
-  "description": "Shared input matrices for Assignment 3 (OpenMP parallel dense multiplication).",
+  "description": "Shared input matrices for Assignments 3-4 (OpenMP parallel and distributed dense multiplication).",
   "generator": "numpy.random.Generator.uniform (PCG64)",
   "seed": 42,
   "seed_scheme_dense": "numpy.random.default_rng([seed, n, matrix_index]) with matrix_index: A=0, B=1 (identical to Assignments 1-2)",
@@ -16,10 +16,24 @@
     200,
     500,
     1000,
-    2000
+    2000,
+    2500,
+    3200,
+    4000
   ],
+  "assignment4_sizes": [
+    2500,
+    3200,
+    4000
+  ],
+  "weak_scaling_sizes": {
+    "1": 2000,
+    "2": 2500,
+    "4": 3200,
+    "8": 4000
+  },
   "numpy_version": "2.2.6",
-  "generated_utc": "2026-10-26T20:09:11+00:00",
+  "generated_utc": "2026-11-11T16:12:53+00:00",
   "script": "scripts/generate_inputs.py",
   "files": [
     {
@@ -175,6 +189,72 @@
       "matrix": "B",
       "kind": "dense",
       "seed_scheme": "default_rng([42, 2000, 1])"
+    },
+    {
+      "file": "A_2500.bin",
+      "n": 2500,
+      "bytes": 50000000,
+      "sha256": "08d26c3c040d323e99e8b3bb98635c52006b672bfab7ecd8ec772d70cfe1c4be",
+      "min": -0.999999816894751,
+      "max": 0.9999998858590111,
+      "matrix": "A",
+      "kind": "dense",
+      "seed_scheme": "default_rng([42, 2500, 0])"
+    },
+    {
+      "file": "B_2500.bin",
+      "n": 2500,
+      "bytes": 50000000,
+      "sha256": "db6e82d50bc771e21d13d51158ab7dcb7ccd5d2ad44fdbe3f995b546101eb937",
+      "min": -0.9999996963203719,
+      "max": 0.9999999592585427,
+      "matrix": "B",
+      "kind": "dense",
+      "seed_scheme": "default_rng([42, 2500, 1])"
+    },
+    {
+      "file": "A_3200.bin",
+      "n": 3200,
+      "bytes": 81920000,
+      "sha256": "ce3bb5f0ae2ced99859a27bfe57f9c3d1f1e4824c7e03c5e68e9a351e80ce615",
+      "min": -0.9999999849716406,
+      "max": 0.9999997441959187,
+      "matrix": "A",
+      "kind": "dense",
+      "seed_scheme": "default_rng([42, 3200, 0])"
+    },
+    {
+      "file": "B_3200.bin",
+      "n": 3200,
+      "bytes": 81920000,
+      "sha256": "415e4ac55614fba2bbe2042cf6d45ef20fa404ef67127ecf67dee1f2bf2f8301",
+      "min": -0.9999998911431169,
+      "max": 0.9999999373035675,
+      "matrix": "B",
+      "kind": "dense",
+      "seed_scheme": "default_rng([42, 3200, 1])"
+    },
+    {
+      "file": "A_4000.bin",
+      "n": 4000,
+      "bytes": 128000000,
+      "sha256": "3c14cd35c2e8b4557389e2506215740914f2db57745685914faed050d5832339",
+      "min": -0.9999996691944453,
+      "max": 0.9999998282388485,
+      "matrix": "A",
+      "kind": "dense",
+      "seed_scheme": "default_rng([42, 4000, 0])"
+    },
+    {
+      "file": "B_4000.bin",
+      "n": 4000,
+      "bytes": 128000000,
+      "sha256": "f81a76997cbdb40cb93cf46481118e9f3936a7354b7b8dee421e4ac05e8f65c6",
+      "min": -0.9999997068506514,
+      "max": 0.999999954442021,
+      "matrix": "B",
+      "kind": "dense",
+      "seed_scheme": "default_rng([42, 4000, 1])"
     }
   ]
 }

@@ -1,0 +1,13 @@
+# Assignment 4 — distributed matrix multiplication (PySpark).
+# Versions captured from the measurement environment (see
+# data/results/environment.json). Installed into the global Python 3.11.9
+# interpreter used for Assignments 1-3.
+#
+#   python -m pip install -r requirements-a4.txt
+#
+pyspark==4.3.0
+py4j==0.10.9.9
+zstandard==0.25.0     # read Spark 4.x event logs (events_*.zstd)
+numpy==2.2.6
+pandas==2.3.3
+psutil==7.1.0

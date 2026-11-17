@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Generate the shared input matrices for Assignment 3.
+"""Generate the shared input matrices for Assignments 3-4.
 
 For every declared size n, two dense n x n matrices (A and B) are written as
 raw little-endian IEEE-754 binary64 files in row-major order, using exactly
 the generator and seed scheme of Assignments 1-2 so the validated inputs are
 reused unchanged (byte-identical on disk).
+
+Assignment 4 adds the larger sizes needed for the distributed scaling study
+(2500, 3200, 4000).  The generator, seed and layout are untouched, so every
+size shared with Assignments 1-3 stays byte-identical and the sequential /
+OpenMP baselines remain directly comparable.
 
 A meta.json manifest records the seed, generator, value range, dimensions and
 SHA-256 checksum of every file.
@@ -28,7 +33,9 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTDIR = ROOT / "data" / "inputs"
 DEFAULT_SEED = 42
-DEFAULT_SIZES = [10, 50, 100, 200, 500, 1000, 2000]
+# 10..2000 come from Assignments 1-3 (unchanged); 2500/3200/4000 are the
+# Assignment 4 weak-scaling sizes (n proportional to p^(1/3) from n=2000).
+DEFAULT_SIZES = [10, 50, 100, 200, 500, 1000, 2000, 2500, 3200, 4000]
 VALUE_RANGE = (-1.0, 1.0)
 MATRICES = (("A", 0), ("B", 1))
 
@@ -79,8 +86,8 @@ def generate(sizes: list[int], seed: int, outdir: Path) -> dict:
                         seed_scheme=f"default_rng([{seed}, {n}, {idx}])")
 
     meta = {
-        "description": "Shared input matrices for Assignment 3 "
-                       "(OpenMP parallel dense multiplication).",
+        "description": "Shared input matrices for Assignments 3-4 "
+                       "(OpenMP parallel and distributed dense multiplication).",
         "generator": "numpy.random.Generator.uniform (PCG64)",
         "seed": seed,
         "seed_scheme_dense": "numpy.random.default_rng([seed, n, matrix_index]) "
@@ -90,6 +97,8 @@ def generate(sizes: list[int], seed: int, outdir: Path) -> dict:
         "dtype": "float64 (IEEE-754 binary64), little-endian '<f8'",
         "layout": "row-major (C order)",
         "dense_sizes": list(sizes),
+        "assignment4_sizes": [2500, 3200, 4000],
+        "weak_scaling_sizes": {1: 2000, 2: 2500, 4: 3200, 8: 4000},
         "numpy_version": np.__version__,
         "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "script": "scripts/generate_inputs.py",
