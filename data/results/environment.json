@@ -1,111 +1,143 @@
 {
-  "description": "Execution environment for Assignment 3 (OpenMP parallel + SIMD dense ikj)",
-  "collected_utc": "2026-10-27T16:50:39+00:00",
+  "description": "Execution environment for Assignment 4 (distributed dense matmul, PySpark standalone)",
+  "collected_utc": "2026-11-17T15:28:57+00:00",
   "platform": "Windows-10-10.0.26200-SP0",
   "python": "3.11.9",
   "numpy": "2.2.6",
+  "pandas": "2.3.3",
   "psutil": "7.1.0",
   "cpu": {
     "psutil_logical": 12,
     "psutil_physical": 10,
     "min_mhz": 0.0,
     "max_mhz": 1700.0,
-    "current_mhz": 1700.0,
-    "wmic": "(failed: [WinError 2] El sistema no puede encontrar el archivo especificado)",
+    "current_mhz": 1457.0,
     "hybrid_note": "Intel i7-1355U: 2 P-cores (2 threads each, CPU0-3) + 8 E-cores (1 thread each, CPU4-11); 12 logical CPUs"
   },
   "ram_total_gb": 16.79,
-  "compiler": "gcc (MinGW-W64 x86_64-ucrt-mcf-seh, built by Brecht Sanders, r1) 16.1.0",
-  "compiler_flags": {
-    "seq": "-std=c11 -O2 -march=native -Wall -Wextra (no OpenMP)",
-    "scalar": "-std=c11 -O2 -march=native -fopenmp -fno-tree-vectorize -DUSE_OMP",
-    "auto": "-std=c11 -O2 -march=native -fopenmp -DUSE_OMP",
-    "simd": "-std=c11 -O2 -march=native -fopenmp -DUSE_OMP -DUSE_OMP_SIMD",
-    "link": "-lpsapi -lm"
+  "java": "openjdk version \"21.0.10\" 2026-01-20 LTS",
+  "java_home": "C:\\Users\\Aleja\\.jdks\\ms-21.0.10",
+  "spark": {
+    "pyspark": "4.3.0",
+    "py4j": "0.10.9.9",
+    "zstandard": "0.25.0",
+    "deployment": "standalone (spark://127.0.0.1:7077)",
+    "mode": "client (driver = submitting Python process)",
+    "spark_home": "C:\\Users\\Aleja\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\pyspark",
+    "configs": {
+      "spark.driver.host": "127.0.0.1",
+      "spark.driver.bindAddress": "127.0.0.1",
+      "spark.pyspark.python": "C:\\Users\\Aleja\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
+      "spark.executor.pyspark.python": "C:\\Users\\Aleja\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
+      "spark.executor.memory": "1g",
+      "spark.executor.memoryOverhead": "512m",
+      "spark.eventLog.enabled": "true (events_*.zstd, Spark 4 v2 format)"
+    },
+    "windows_fixes": [
+      "hostname VIVOBOOK_ALED is not a valid Spark URL host -> driver binds/advertises 127.0.0.1",
+      "Windows App Execution Alias for 'python' prints the Store banner and exits -> PYSPARK_PYTHON points at the real interpreter path",
+      "SPARK_LOCAL_IP=127.0.0.1 so worker daemons bind loopback"
+    ]
   },
-  "isa_native": {
-    "march_native": "?",
-    "mtune_native": "?",
+  "hadoop_helpers": {
+    "HADOOP_HOME": "C:\\Users\\Aleja\\Documents\\Universidad\\3er Curso\\1er Cuatrimestre\\BD\\individual-assigments\\individual-assignments-bigdata\\build\\hadoop",
+    "winutils_present": true,
+    "hadoop_dll_present": true,
+    "why": "Spark's event log is written through Hadoop's LocalFileSystem; on Windows that path needs %HADOOP_HOME%\\bin\\winutils.exe. Fetched by scripts/fetch_winutils.py into build/hadoop/ (git-ignored third-party binaries).",
+    "scope_note": "Only Hadoop FileSystem calls need it; matrix I/O in this study uses plain numpy file I/O."
+  },
+  "cluster": {
+    "running": true,
+    "master_url": "spark://127.0.0.1:7077",
+    "workers": 8,
+    "worker_cores": 1,
+    "worker_memory": "1g",
+    "pids": [
+      13900,
+      25448,
+      25264,
+      18352,
+      21216,
+      6604,
+      10412,
+      12712,
+      7852
+    ],
+    "started_utc": "2026-11-17T14:55:49Z",
+    "physical_machines": 1,
+    "topology_note": "1 driver process + 1 master process + N worker processes (1 JVM each, 1 core each), all bound to 127.0.0.1 on a single physical laptop."
+  },
+  "compiler_baselines": {
+    "note": "sequential + OpenMP baselines reused unchanged from Assignment 3 (same source, same flags)",
+    "gcc": "gcc (MinGW-W64 x86_64-ucrt-mcf-seh, built by Brecht Sanders, r1) 16.1.0",
     "flags": {
-      "mavx": "enabled",
-      "mavx2": "enabled",
-      "mfma": "enabled",
-      "msse4.2": "enabled",
-      "mavx512f": "disabled",
-      "mavx512bw": "disabled",
-      "mavx512vl": "disabled",
-      "mavx512dq": "disabled"
+      "seq": "-std=c11 -O2 -march=native -Wall -Wextra (no OpenMP)",
+      "simd": "-std=c11 -O2 -march=native -fopenmp -DUSE_OMP -DUSE_OMP_SIMD",
+      "link": "-lpsapi -lm"
     }
   },
-  "openmp": {
-    "runtime": "GCC libgomp (MinGW-w64 ucrt64, winpthreads)",
-    "api": "omp_set_dynamic(0) + omp_set_num_threads(p) per run",
-    "scheduling": "schedule(static) over row index i (rows of C)",
-    "wait_policy": "libgomp default (active spin during parallel regions); OMP_WAIT_POLICY not set",
-    "affinity_caveat": "libgomp on Windows has no reliable OMP_PROC_BIND; OS scheduler places threads"
+  "power_plan": {
+    "benchmark_plan": "High performance (8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c); switched by run_benchmark4.py before the campaign and restored afterwards",
+    "resting_plan": "GUID de plan de energ\u00a1a: 381b4222-f694-41f0-9685-ff5bb260df2e  (Equilibrado)",
+    "why": "Balanced throttled the BLAS kernel by ~2-3x, which would have confounded the Spark/C/numpy comparison"
   },
-  "affinity_masks": {
-    "all": "SetProcessAffinityMask 0xFFF (CPU0-11, all logical CPUs)",
-    "pcore": "SetProcessAffinityMask 0xF (CPU0-3, P-core threads only)"
-  },
-  "power_plan": "GUID de plan de energ\u00a1a: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (Alto rendimiento)",
   "protocol": {
-    "sizes": [
-      50,
-      100,
-      200,
+    "sizes_strong": [
+      2000,
+      4000
+    ],
+    "sizes_weak": {
+      "1": 2000,
+      "2": 2500,
+      "4": 3200,
+      "8": 4000
+    },
+    "weak_scaling_rule": "n_total = n_1 * p^(1/3) so that n^3/p (work per worker) stays constant",
+    "sizes_size_scaling": [
       500,
       1000,
-      2000
+      2000,
+      4000
     ],
-    "reported_session": "stable session: ~2.5 min heat-soak, then scale2 (seqpre -> p-sweep -> seqpost bracketing per n), pcore2 and simd2 back-to-back",
-    "tseq_definition": "median of the 10 bracketed sequential measurements per n",
-    "scale_variant": "matmul3_simd (parallel + #pragma omp simd)",
-    "scale_reference_rows": "pilot sweeps (seq/scale/simd/pcore, auto and simd variants) kept in the CSVs for transparency; drifted by cross-phase thermal effects",
-    "scale_threads": [
+    "workers_grid": [
       1,
       2,
       4,
-      8,
-      12,
-      16
+      8
     ],
-    "simd_sizes": [
-      200,
-      500,
-      1000,
-      2000
-    ],
-    "simd_threads": [
-      1,
-      8,
-      12
-    ],
-    "pcore_sizes": [
-      500,
-      1000,
-      2000
-    ],
-    "pcore_threads": [
-      1,
-      2,
-      3,
-      4
-    ],
-    "pcore_variant": "matmul3_simd (CPU0-3 mask)",
+    "worker_definition": "1 worker = 1 standalone worker process (1 JVM, 1 core); drivers and masters are separate processes; 1 physical machine",
+    "distributed_variant": "row-block partition of A + B replicated to every worker with sc.addFile; numpy/BLAS matmul per block",
+    "distributed_reps": 3,
+    "baseline_reps": 5,
+    "summary_statistic": "median",
     "warmups": 1,
-    "reps": 5,
-    "probe_budget_s": 60,
-    "min_batch_ns": 200000000,
-    "gate": "bench budget = min(60 s, 2 x max probe); skip if probe > 60 s",
-    "timing_scope": "kernel only (matmul incl. memset of C); load + checksum outside timed region",
-    "inputs": "data/inputs/A_n.bin, B_n.bin (identical to Assignments 1-2)"
+    "heat_soak_s": 300,
+    "min_batch_ns": 0,
+    "min_batch_note": "0 forces batch = 1 in the C bench mode, so every measured batch is exactly one multiplication",
+    "timing_boundary": "additive driver phases per repetition: t_e2e = t_stage_a (split + serialize A) + t_action_job (dispatch, transfer, compute, collect) + t_assemble (rebuild C)",
+    "startup_excluded": "t_startup (SparkSession + executor launch) and t_replicate (addFile + forcing job that materialises B everywhere) are one-time per application and reported separately; the per-task Python-worker respawn is NOT excluded, because on Windows a fresh worker process is started for every task",
+    "baselines": [
+      "numpy_sequential: same BLAS kernel, 1 process, 1 thread (isolates distribution overhead from kernel speed)",
+      "matmul3_seq: Assignment 3 sequential C kernel",
+      "matmul3_simd: Assignment 3 OpenMP/SIMD C kernel at p in {1,2,4,8} threads"
+    ],
+    "known_limitations": [
+      "sc.broadcast is unusable on Windows: PythonBroadcast.readObject moves its temp file into the block manager while the FileOutputStream is still open, and Files.move fails with ERROR_SHARING_VIOLATION. Verified against the bundled JDK 21; sc.addFile is used instead (same 8n^2 bytes per worker).",
+      "Python workers cannot be reused on Windows: PythonWorkerFactory.releaseWorker only requeues when useDaemon is true, which needs os.fork(). Every task pays a fresh python.exe + import pyspark.worker + numpy.",
+      "The i7-1355U (2 P-cores + 8 E-cores, 15 W) caps useful parallelism at ~1.9x: measured 1-thread 65 GFLOP/s vs 8-thread 121 GFLOP/s on the same BLAS kernel.",
+      "All workers are processes on ONE physical machine, never separate nodes."
+    ],
+    "validation": "distributed C vs matmul3_seq C on identical inputs, rtol=1e-9, atol=1e-12 (numpy/BLAS summation order differs from ikj)",
+    "inputs": "data/inputs/A_n.bin, B_n.bin (same generator/seed as Assignments 1-3, byte-identical where sizes overlap)"
   },
-  "git_commit": "b90244f",
+  "git_commit": "ed87376",
   "commands": [
-    "python scripts/build.py",
+    "python -m pip install -r requirements-a4.txt",
+    "python scripts/fetch_winutils.py",
     "python scripts/generate_inputs.py",
-    "python scripts/run_benchmark3.py --phase all",
+    "python scripts/build.py",
+    "python scripts/spark_cluster.py start --workers 8",
+    "python scripts/run_benchmark4.py --phase all --soak-s 300",
     "python scripts/collect_env.py"
   ]
 }
